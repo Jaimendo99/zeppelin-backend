@@ -16,13 +16,13 @@ func TestAdd(t *testing.T) {
 	}{
 		{
 			name:     "Positive numbers",
-			a:        1,
+			a:        2,
 			b:        3,
 			expected: 5,
 		},
 		{
 			name:     "Negative numbers",
-			a:        -1,
+			a:        -2,
 			b:        -3,
 			expected: -5,
 		},
@@ -34,7 +34,7 @@ func TestAdd(t *testing.T) {
 		},
 		{
 			name:     "Mixed numbers",
-			a:        -1,
+			a:        -2,
 			b:        3,
 			expected: 1,
 		},
