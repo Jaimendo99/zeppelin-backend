@@ -9,8 +9,8 @@ func main() {
 	e.GET("/", func(c echo.Context) error {
 		e.StdLogger.Print("Hola my friend")
 		user := User{
-			Name: "Jon",
-			Age:  20,
+			Name: "Jaime",
+			Age:  25,
 		}
 		return c.JSON(200, user)
 	})
