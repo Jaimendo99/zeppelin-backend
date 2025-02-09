@@ -37,3 +37,8 @@ jobs:
           tags: |
             ghcr.io/jaimendo99/zeppelin-backend:latest
             ghcr.io/jaimendo99/zeppelin-backend:${{ github.sha }}
+
+      - name: Notify deployment via Coolify
+        run: |
+          curl -X GET "http://62.146.226.103:8000/api/v1/deploy?uuid=${{ secrets.RESOURCE_UUID }}&force=false" \
+          -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}"
