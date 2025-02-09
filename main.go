@@ -7,6 +7,7 @@ import (
 func main() {
 	e := echo.New()
 	e.GET("/", func(c echo.Context) error {
+		e.StdLogger.Print("Hola my friend")
 		return c.String(200, "Hello, World!")
 	})
 
