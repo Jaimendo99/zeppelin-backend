@@ -9,7 +9,7 @@ func main() {
 	e.GET("/", func(c echo.Context) error {
 		e.StdLogger.Print("Hola my friend")
 		user := User{
-			Name: "Anthony",
+			Name: "Anthony Cochea",
 			Age:  21,
 		}
 		return c.JSON(200, user)
