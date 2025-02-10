@@ -1,12 +1,10 @@
-package main
+package usecases
 
-import "testing"
+import (
+	"testing"
+)
 
 // Add adds two integers and returns the sum.
-func Add(a, b int) int {
-	return a + b
-}
-
 func TestAdd(t *testing.T) {
 	testCases := []struct {
 		name     string

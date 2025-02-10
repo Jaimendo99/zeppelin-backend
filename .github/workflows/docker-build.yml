@@ -18,8 +18,15 @@ jobs:
         with:
           go-version: "1.23"
 
-      - name: Run tests
-        run: go test ./...
+      - name: Build and test with coverage
+        run: |
+          go mod download
+          go test -covermode=atomic -coverprofile=coverage.out ./...
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@v1.11
+        with:
+          token: ${{ secrets.SONAR_TOKEN }}
 
   build:
     runs-on: ubuntu-latest
