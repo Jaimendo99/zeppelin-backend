@@ -24,5 +24,5 @@ func init() {
 func main() {
 	e := echo.New()
 	routes.DefineRepresentativeRoutes(e)
-	e.Logger.Fatal(e.Start("0.0.0.0:3000"))
+	e.Logger.Info(e.Start("0.0.0.0:3000"))
 }

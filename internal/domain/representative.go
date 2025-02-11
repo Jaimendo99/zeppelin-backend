@@ -1,7 +1,7 @@
 package domain
 
 type Representative struct {
-	RepresentativeId int    `json:"representative_id"`
+	RepresentativeId int    `json:"representative_id" gorm:"primaryKey"`
 	Name             string `json:"name"`
 	Lastname         string `json:"lastname"`
 	Email            string `json:"email"`
@@ -25,14 +25,16 @@ type RepresentativeInput struct {
 type RepresentativeRepo interface {
 	CreateRepresentative(representative RepresentativeDb) error
 	GetRepresentative(representative_id int) (RepresentativeDb, error)
-	//GetAllRepresentatives() ([]RepresentativeDb, error)
-	//UpdateRepresentative(representative_id int, representative RepresentativeInput) error
+	GetAllRepresentatives() ([]Representative, error)
+	UpdateRepresentative(representative_id int, representative RepresentativeInput) error
 	//DeleteRepresentative(representative_id int) error
 }
 
 type RepresentativeServiceI interface {
 	CreateRepresentative(representative RepresentativeInput) error
 	GetRepresentative(representative_id string) (RepresentativeDb, error)
+	GetAllRepresentatives() ([]Representative, error)
+	UpdateRepresentative(representative_id string, representative RepresentativeInput) error
 }
 
 // TableName overrides the default table name.
