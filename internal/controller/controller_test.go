@@ -14,19 +14,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// MockRepresentativeService implements the methods required by the controller.
 type MockRepresentativeService struct {
 	// Define functions to simulate behavior.
 	CreateFunc func(input domain.RepresentativeInput) error
 	GetFunc    func(id string) (domain.RepresentativeDb, error)
 }
 
-// CreateRepresentative calls the mocked CreateFunc.
 func (m *MockRepresentativeService) CreateRepresentative(input domain.RepresentativeInput) error {
 	return m.CreateFunc(input)
 }
-
-// GetRepresentative calls the mocked GetFunc.
 func (m *MockRepresentativeService) GetRepresentative(id string) (domain.RepresentativeDb, error) {
 	return m.GetFunc(id)
 }
@@ -34,16 +30,13 @@ func (m *MockRepresentativeService) GetRepresentative(id string) (domain.Represe
 // --- Test for CreateRepresentative ---
 
 func TestCreateRepresentative_Success(t *testing.T) {
-	// Setup Echo instance and request.
 	e := echo.New()
-	// Create a JSON payload that matches domain.RepresentativeInput.
 	requestJSON := `{"name": "John", "lastname": "Doe"}`
 	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(requestJSON))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	// Create a mock service that returns no error on creation.
 	mockService := &MockRepresentativeService{
 		CreateFunc: func(input domain.RepresentativeInput) error {
 			// Optionally, you can verify that the input is as expected.
