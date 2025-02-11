@@ -21,8 +21,6 @@ jobs:
           go-version: "1.23"
 
       - name: test with coverage
-        env:
-          CGO_ENABLED: 1
         run: |
           go mod download
           go test -covermode=atomic -coverprofile=coverage.out ./...
