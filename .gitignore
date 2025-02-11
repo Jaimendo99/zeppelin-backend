@@ -1,3 +1,4 @@
 .exe*
 tmp/
 *.out
+.air.toml

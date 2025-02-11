@@ -1,4 +1,4 @@
-name: Build, Test, and Publish Docker Image
+name: Build, Test, and Publish Image
 
 on:
   push:
@@ -36,9 +36,6 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
-
-      - name: Show Quality Gate status
-        run: echo "The Quality Gate status is ${{ steps.sonarqube-quality-gate-check.outputs.quality-gate-status }}"
 
   build:
     runs-on: ubuntu-latest
