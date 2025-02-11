@@ -3,3 +3,4 @@ tmp/
 *.out
 .air.toml
 .env
+*.db
