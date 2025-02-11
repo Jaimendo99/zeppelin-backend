@@ -32,8 +32,8 @@ func (c *RepresentativeController) CreateRepresentative() echo.HandlerFunc {
 
 func (c *RepresentativeController) GetRepresentative() echo.HandlerFunc {
 	return func(e echo.Context) error {
-		representative_id := e.Param("representative_id")
-		representative, err := c.Service.GetRepresentative(representative_id)
+		representativeId := e.Param("representative_id")
+		representative, err := c.Service.GetRepresentative(representativeId)
 		if err != nil {
 			return e.JSON(http.StatusInternalServerError, struct{ Message string }{Message: "Internal server error"})
 		}
