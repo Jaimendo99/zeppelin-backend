@@ -10,12 +10,9 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-func InitDb() {
-	gorm.Open(sqlite.Open("test.db"), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
-}
-
 func TestRepresentativeRepo(t *testing.T) {
-	dB, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
+	dB, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+
 	dB.AutoMigrate(&domain.Representative{})
 	dB.Exec("DELETE FROM representatives")
 
