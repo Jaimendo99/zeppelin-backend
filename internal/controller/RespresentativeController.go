@@ -3,16 +3,15 @@ package controller
 import (
 	"net/http"
 	"zeppelin/internal/domain"
-	"zeppelin/internal/services"
 
 	"github.com/labstack/echo/v4"
 )
 
 type RepresentativeController struct {
-	Service *services.RepresentativeService
+	Service domain.RepresentativeServiceI
 }
 
-func NewRepresentativeController(service *services.RepresentativeService) *RepresentativeController {
+func NewRepresentativeController(service domain.RepresentativeServiceI) *RepresentativeController {
 	return &RepresentativeController{Service: service}
 }
 

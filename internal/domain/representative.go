@@ -30,6 +30,11 @@ type RepresentativeRepo interface {
 	//DeleteRepresentative(representative_id int) error
 }
 
+type RepresentativeServiceI interface {
+	CreateRepresentative(representative RepresentativeInput) error
+	GetRepresentative(representative_id string) (RepresentativeDb, error)
+}
+
 // TableName overrides the default table name.
 func (RepresentativeDb) TableName() string {
 	return "representatives"
