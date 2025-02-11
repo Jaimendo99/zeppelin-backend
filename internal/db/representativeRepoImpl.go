@@ -22,9 +22,9 @@ func (r *represetativeRepo) CreateRepresentative(representative domain.Represent
 	return nil
 }
 
-func (r *represetativeRepo) GetRepresentative(representative_id int) (domain.RepresentativeDb, error) {
+func (r *represetativeRepo) GetRepresentative(representativeId int) (domain.RepresentativeDb, error) {
 	var representative domain.RepresentativeDb
-	result := r.db.First(&representative, representative_id)
+	result := r.db.First(&representative, representativeId)
 	if result.Error != nil {
 		return domain.RepresentativeDb{}, result.Error
 	}

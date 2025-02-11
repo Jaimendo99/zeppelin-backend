@@ -28,8 +28,8 @@ func (s *RepresentativeService) CreateRepresentative(representative domain.Repre
 	return nil
 }
 
-func (s *RepresentativeService) GetRepresentative(representative_id string) (domain.RepresentativeDb, error) {
-	id, err := strconv.ParseInt(representative_id, 10, 10)
+func (s *RepresentativeService) GetRepresentative(representativeId string) (domain.RepresentativeDb, error) {
+	id, err := strconv.ParseInt(representativeId, 10, 10)
 	if err != nil {
 		return domain.RepresentativeDb{}, err
 	}
