@@ -1,65 +1,30 @@
 package services
 
 import (
-	"fmt"
+	"database/sql"
 	"strconv"
 	"zeppelin/internal/domain"
 )
 
-type RepresentativeService struct {
-	Repo domain.RepresentativeRepo
-}
-
-func NewRepresentativeService(repo domain.RepresentativeRepo) *RepresentativeService {
-	return &RepresentativeService{Repo: repo}
-}
-
-func (s *RepresentativeService) CreateRepresentative(representative domain.RepresentativeInput) error {
-	representativeDb := domain.RepresentativeDb{
+func RepresetativeInputToDb(representative *domain.RepresentativeInput) domain.RepresentativeDb {
+	return domain.RepresentativeDb{
 		Name:     representative.Name,
 		Lastname: representative.Lastname,
-		Email:    &representative.Email,
-		Phone:    &representative.Phone,
+		Email: sql.NullString{
+			String: representative.Email,
+			Valid:  representative.Email != "",
+		},
+		PhoneNumber: sql.NullString{
+			String: representative.PhoneNumber,
+			Valid:  representative.PhoneNumber != "",
+		},
 	}
-
-	err := s.Repo.CreateRepresentative(representativeDb)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
-func (s *RepresentativeService) GetRepresentative(representativeId string) (domain.RepresentativeDb, error) {
+func ParamToId(representativeId string) (int, error) {
 	id, err := strconv.ParseInt(representativeId, 10, 10)
 	if err != nil {
-		return domain.RepresentativeDb{}, err
+		return -1, err
 	}
-	representative, err := s.Repo.GetRepresentative(int(id))
-	if err != nil {
-		return domain.RepresentativeDb{}, err
-	}
-	return representative, nil
-}
-
-func (s *RepresentativeService) GetAllRepresentatives() ([]domain.Representative, error) {
-	representatives, err := s.Repo.GetAllRepresentatives()
-	if err != nil {
-		return nil, err
-	}
-	return representatives, nil
-}
-
-func (s *RepresentativeService) UpdateRepresentative(representativeId string, representative domain.RepresentativeInput) error {
-	id, err := strconv.ParseInt(representativeId, 10, 10)
-	if err != nil {
-		return err
-	}
-	fmt.Println(id)
-	err = s.Repo.UpdateRepresentative(int(id), representative)
-	if err != nil {
-		fmt.Printf("REPRE_SERVICE: %v \n", representative)
-		fmt.Printf("REPRE_SERVICE: error: %v", err)
-		return err
-	}
-	return nil
+	return int(id), nil
 }

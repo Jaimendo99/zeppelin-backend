@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"log"
 	"zeppelin/internal/config"
+	"zeppelin/internal/controller"
 	"zeppelin/internal/db"
 	"zeppelin/internal/routes"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 )
 
@@ -23,6 +25,7 @@ func init() {
 
 func main() {
 	e := echo.New()
+	e.Validator = &controller.CustomValidator{Validator: validator.New()}
 	routes.DefineRepresentativeRoutes(e)
 	e.Logger.Info(e.Start("0.0.0.0:3000"))
 }

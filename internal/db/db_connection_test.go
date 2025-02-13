@@ -42,11 +42,11 @@ func TestDBConnection(t *testing.T) {
 		resetDBVars()
 		err := db.InitDb(tc.dns)
 		if tc.err && err == nil {
-			t.Error("🔴 Expected to error but didn't")
+			t.Error("Expected to error but didn't")
 		} else if !tc.err && err != nil {
-			t.Error(" 🔴 Expected not to error but did", err.Error())
+			t.Error("Expected not to error but did", err.Error())
 		} else {
-			t.Log("✅ Test case passed ✅")
+			t.Log("Test case passed")
 		}
 	}
 }
