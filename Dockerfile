@@ -1,13 +1,8 @@
-FROM golang:alpine
+FROM alpine:latest
 
 WORKDIR /app
 
-COPY go.mod go.sum ./
-RUN go mod download
-
-COPY . .
-
-RUN go build -o main cmd/main/main.go
+COPY main .
 
 EXPOSE 3000
 
