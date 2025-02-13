@@ -14,7 +14,7 @@ import (
 
 func init() {
 	if err := config.LoadEnv(); err != nil {
-		log.Fatal(err)
+		log.Print(err)
 	}
 	dns := config.GetConnectionString()
 	err := db.InitDb(dns)
