@@ -1,7 +1,7 @@
 package db
 
 import (
-	"fmt"
+	"database/sql"
 	"zeppelin/internal/domain"
 
 	"gorm.io/gorm"
@@ -23,13 +23,16 @@ func (r *represetativeRepo) CreateRepresentative(representative domain.Represent
 	return nil
 }
 
-func (r *represetativeRepo) GetRepresentative(representativeId int) (domain.RepresentativeDb, error) {
-	var representative domain.RepresentativeDb
+func (r *represetativeRepo) GetRepresentative(representativeId int) (*domain.RepresentativeInput, error) {
+	if representativeId < 0 {
+		return nil, gorm.ErrInvalidData
+	}
+	var representative domain.RepresentativeInput
 	result := r.db.Where("representative_id = ?", representativeId).First(&representative)
 	if result.Error != nil {
-		return domain.RepresentativeDb{}, result.Error
+		return nil, result.Error
 	}
-	return representative, nil
+	return &representative, nil
 }
 
 func (r *represetativeRepo) GetAllRepresentatives() ([]domain.Representative, error) {
@@ -42,19 +45,21 @@ func (r *represetativeRepo) GetAllRepresentatives() ([]domain.Representative, er
 }
 
 func (r *represetativeRepo) UpdateRepresentative(representativeId int, representative domain.RepresentativeInput) error {
-	var representativeDb domain.Representative
+	if representativeId < 0 {
+		return gorm.ErrInvalidData
+	}
+	var representativeDb domain.RepresentativeDb
 	result := r.db.Where("representative_id = ?", representativeId).First(&representativeDb)
 	if result.Error != nil {
-		fmt.Printf("REPRE_REPO: %v  -1-   ", result.Error)
 		return result.Error
 	}
 	representativeDb.Name = representative.Name
 	representativeDb.Lastname = representative.Lastname
-	representativeDb.Email = representative.Email
-	representativeDb.Phone = representative.Phone
+	representativeDb.Email = sql.NullString{String: representative.Email}
+	representativeDb.PhoneNumber = sql.NullString{String: representative.PhoneNumber}
+
 	result = r.db.Save(&representativeDb)
 	if result.Error != nil {
-		fmt.Printf("REPRE_REPO: %v  -2-   ", result.Error)
 		return result.Error
 	}
 	return nil

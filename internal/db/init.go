@@ -20,7 +20,8 @@ func InitDb(connectionString string) error {
 			DSN:                  connectionString,
 			PreferSimpleProtocol: true,
 		}), &gorm.Config{
-			Logger: logger.Default.LogMode(logger.Silent),
+			TranslateError: true,
+			Logger:         logger.Default.LogMode(logger.Info),
 		})
 	})
 	return DbError

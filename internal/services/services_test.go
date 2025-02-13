@@ -4,66 +4,58 @@ import (
 	"testing"
 	"zeppelin/internal/domain"
 	"zeppelin/internal/services"
+
+	"github.com/stretchr/testify/assert"
 )
 
-type RepresentativeRepoMock struct {
-}
-
-func (r RepresentativeRepoMock) CreateRepresentative(representative domain.RepresentativeDb) error {
-	return nil
-}
-
-func (r RepresentativeRepoMock) GetRepresentative(id int) (domain.RepresentativeDb, error) {
-	return domain.RepresentativeDb{}, nil
-}
-
-func (r RepresentativeRepoMock) GetAllRepresentatives() ([]domain.Representative, error) {
-	return nil, nil
-}
-
-func (r RepresentativeRepoMock) UpdateRepresentative(id int, representative domain.RepresentativeInput) error {
-	return nil
-}
-
-func TestRepresentativeService(t *testing.T) {
-
-	service := services.NewRepresentativeService(RepresentativeRepoMock{})
-
-	err := service.CreateRepresentative(domain.RepresentativeInput{})
-	if err != nil {
-		t.Errorf("Expected nil, got %v", err)
+func TestRepresetativeInputToDb_FullFields(t *testing.T) {
+	input := domain.RepresentativeInput{
+		Name:        "Mateo",
+		Lastname:    "Mejia",
+		Email:       "jaimendo26@gmail.com",
+		PhoneNumber: "+129129122",
 	}
 
-	_, err = service.GetRepresentative("1")
-	if err != nil {
-		t.Errorf("Expected nil, got %v", err)
-	}
+	dbModel := services.RepresetativeInputToDb(&input)
 
+	assert.Equal(t, input.Name, dbModel.Name, "Name should match")
+	assert.Equal(t, input.Lastname, dbModel.Lastname, "Lastname should match")
+
+	assert.True(t, dbModel.Email.Valid, "Email.Valid should be true")
+	assert.Equal(t, input.Email, dbModel.Email.String, "Email should match")
+
+	assert.True(t, dbModel.PhoneNumber.Valid, "PhoneNumber.Valid should be true")
+	assert.Equal(t, input.PhoneNumber, dbModel.PhoneNumber.String, "PhoneNumber should match")
 }
 
-func TestRepresentativeServiceCreateRepresentative(t *testing.T) {
-	service := services.NewRepresentativeService(RepresentativeRepoMock{})
-
-	err := service.CreateRepresentative(domain.RepresentativeInput{})
-	if err != nil {
-		t.Errorf("Expected nil, got %v", err)
+func TestRepresetativeInputToDb_EmptyFields(t *testing.T) {
+	input := domain.RepresentativeInput{
+		Name:        "Mateo",
+		Lastname:    "Mejia",
+		Email:       "",
+		PhoneNumber: "",
 	}
+
+	dbModel := services.RepresetativeInputToDb(&input)
+
+	assert.Equal(t, input.Name, dbModel.Name, "Name should match")
+	assert.Equal(t, input.Lastname, dbModel.Lastname, "Lastname should match")
+
+	assert.False(t, dbModel.Email.Valid, "Email.Valid should be false for empty input")
+	assert.Equal(t, "", dbModel.Email.String, "Email should be empty")
+
+	assert.False(t, dbModel.PhoneNumber.Valid, "PhoneNumber.Valid should be false for empty input")
+	assert.Equal(t, "", dbModel.PhoneNumber.String, "PhoneNumber should be empty")
 }
 
-func TestRepresentativeServiceGetRepresentative(t *testing.T) {
-	service := services.NewRepresentativeService(RepresentativeRepoMock{})
-
-	_, err := service.GetRepresentative("1")
-	if err != nil {
-		t.Errorf("Expected nil, got %v", err)
-	}
+func TestParamToId_Valid(t *testing.T) {
+	id, err := services.ParamToId("123")
+	assert.NoError(t, err, "Expected no error for valid numeric string")
+	assert.Equal(t, 123, id, "Expected id to be 123")
 }
 
-func TestRepresentativeServiceGetAllRepresentatives(t *testing.T) {
-	service := services.NewRepresentativeService(RepresentativeRepoMock{})
-
-	_, err := service.GetAllRepresentatives()
-	if err != nil {
-		t.Errorf("Expected nil, got %v", err)
-	}
+func TestParamToId_Invalid(t *testing.T) {
+	id, err := services.ParamToId("abc")
+	assert.Error(t, err, "Expected error for non-numeric string")
+	assert.Equal(t, -1, id, "Expected id to be -1 on error")
 }
