@@ -1,11 +1,11 @@
-package db_test
+package config_test
 
 import (
 	"log"
 	"os"
 	"sync"
 	"testing"
-	"zeppelin/internal/db"
+	"zeppelin/internal/config"
 
 	"github.com/joho/godotenv"
 )
@@ -18,9 +18,9 @@ func getConnectionString() string {
 	return os.Getenv("CONNECTION_STRING")
 }
 func resetDBVars() {
-	db.DB = nil
-	db.DbError = nil
-	db.Once = sync.Once{}
+	config.DB = nil
+	config.DbError = nil
+	config.Once = sync.Once{}
 }
 
 func TestDBConnection(t *testing.T) {
@@ -40,7 +40,7 @@ func TestDBConnection(t *testing.T) {
 
 	for _, tc := range testcases {
 		resetDBVars()
-		err := db.InitDb(tc.dns)
+		err := config.InitDb(tc.dns)
 		if tc.err && err == nil {
 			t.Error("Expected to error but didn't")
 		} else if !tc.err && err != nil {
