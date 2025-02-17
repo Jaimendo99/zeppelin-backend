@@ -5,7 +5,6 @@ import (
 	"log"
 	"zeppelin/internal/config"
 	"zeppelin/internal/controller"
-	"zeppelin/internal/db"
 	"zeppelin/internal/routes"
 
 	"github.com/go-playground/validator/v10"
@@ -17,7 +16,7 @@ func init() {
 		log.Print(err)
 	}
 	dns := config.GetConnectionString()
-	err := db.InitDb(dns)
+	err := config.InitDb(dns)
 	if err != nil {
 		fmt.Println("Error connecting to database: ")
 	}
