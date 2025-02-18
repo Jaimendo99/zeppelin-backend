@@ -1,11 +1,12 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"zeppelin/internal/config"
 	"zeppelin/internal/controller"
+	"zeppelin/internal/db"
 	"zeppelin/internal/routes"
+	"zeppelin/internal/services"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
@@ -13,18 +14,39 @@ import (
 
 func init() {
 	if err := config.LoadEnv(); err != nil {
-		log.Print(err)
+		log.Fatalf("failed to load env: %v", err)
 	}
+
 	dns := config.GetConnectionString()
-	err := config.InitDb(dns)
-	if err != nil {
-		fmt.Println("Error connecting to database: ")
+	if err := config.InitDb(dns); err != nil {
+		log.Fatalf("error connecting to database: %v", err)
+	}
+
+	if err := config.InitMQ(config.GetMQConnectionString()); err != nil {
+		log.Fatalf("error connecting to message queue: %v", err)
+	} else {
+		log.Println("connected to message queue")
 	}
 }
 
 func main() {
 	e := echo.New()
 	e.Validator = &controller.CustomValidator{Validator: validator.New()}
+
 	routes.DefineRepresentativeRoutes(e)
-	e.Logger.Info(e.Start("0.0.0.0:3000"))
+	routes.DefineNotificationRoutes(e)
+
+	notificationMq := db.NewNotificationMq(config.ProducerChannel, services.NotificationPrinter{})
+
+	go func() {
+		if err := notificationMq.ConsumeFromQueue("notification"); err != nil {
+			e.Logger.Error("error consuming queue: ", err)
+		}
+	}()
+
+	defer config.MQConn.Close()
+
+	if err := e.Start("0.0.0.0:8080"); err != nil {
+		e.Logger.Fatal("error starting server: ", err)
+	}
 }
