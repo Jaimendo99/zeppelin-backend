@@ -34,33 +34,16 @@ func (n *NotificationRabbitMq) SendToQueue(notification domain.NotificationQueue
 	)
 }
 func (n *NotificationRabbitMq) ConsumeFromQueue(queueName string) error {
-	// Declare the queue to ensure it exists.
-	q, err := n.channel.QueueDeclare(
-		queueName, // queue name
-		false,     // durable
-		false,     // delete when unused
-		false,     // exclusive
-		false,     // no-wait
-		nil,       // arguments
-	)
+	q, err := n.channel.QueueDeclare(queueName, false, false, false, false, nil)
 	if err != nil {
 		return err
 	}
 
-	msgs, err := n.channel.Consume(
-		q.Name, // use the declared queue name
-		"",     // consumer
-		true,   // auto-ack
-		false,  // exclusive
-		false,  // no-local
-		false,  // no-wait
-		nil,    // args
-	)
+	msgs, err := n.channel.Consume(q.Name, "", true, false, false, false, nil)
 	if err != nil {
 		return err
 	}
 
-	// Process messages
 	for msg := range msgs {
 		var notification domain.NotificationQueue
 		if err := json.Unmarshal(msg.Body, &notification); err != nil {

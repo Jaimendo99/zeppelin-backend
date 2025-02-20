@@ -12,3 +12,7 @@ func GetMQConnectionString() string {
 
 	return os.Getenv("MQ_CONN_STRING")
 }
+
+func GetSmtpPassword() string {
+	return os.Getenv("SMTP_PASSWORD")
+}

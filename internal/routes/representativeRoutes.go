@@ -11,7 +11,6 @@ import (
 
 func DefineRepresentativeRoutes(e *echo.Echo, m ...echo.MiddlewareFunc) {
 	repo := db.NewRepresentativeRepo(config.DB)
-
 	recontroller := controller.RepresentativeController{Repo: repo}
 
 	e.GET("/representative/:representative_id", recontroller.GetRepresentative(), m...)
@@ -21,8 +20,18 @@ func DefineRepresentativeRoutes(e *echo.Echo, m ...echo.MiddlewareFunc) {
 }
 
 func DefineNotificationRoutes(e *echo.Echo, m ...echo.MiddlewareFunc) {
-	service := services.NotificationPrinter{}
+
+	smtServer := config.GetSmtpConfig()
+
+	service := services.NewEmailNotification(*smtServer)
 	repo := db.NewNotificationMq(config.ProducerChannel, service)
 	controller := controller.NewNotificationController(repo)
+
 	e.POST("/notification", controller.SendNotification(), m...)
+
+	go func() {
+		if err := repo.ConsumeFromQueue("notification"); err != nil {
+			e.Logger.Error("error consuming queue: ", err)
+		}
+	}()
 }
