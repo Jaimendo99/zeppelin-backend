@@ -1,10 +1,13 @@
 package services
 
 import (
+	"context"
 	"log"
 	"net/smtp"
 	"strings"
 	"zeppelin/internal/domain"
+
+	"firebase.google.com/go/v4/messaging"
 )
 
 type EmailNotification struct {
@@ -15,9 +18,9 @@ func NewEmailNotification(s domain.SmtpConfig) *EmailNotification {
 	return &EmailNotification{smtpConfig: s}
 }
 
-func (e *EmailNotification) SendNotification(notification domain.NotificationQueue) error {
+func (e *EmailNotification) SendNotification(notification domain.NotificationData) error {
 	log.Println("Sending email notification")
-	receivers := strings.Join(notification.Receiver, ",")
+	receivers := strings.Join(notification.Address, ",")
 	msg := []byte("To: " + receivers + "\r\n" +
 		"Subject: Notification\r\n" +
 		"\r\n" +
@@ -27,13 +30,49 @@ func (e *EmailNotification) SendNotification(notification domain.NotificationQue
 		e.smtpConfig.Host+":"+e.smtpConfig.Port,
 		e.smtpConfig.Auth,
 		e.smtpConfig.Username,
-		notification.Receiver, msg)
+		notification.Address,
+		msg,
+	)
 
 	if err != nil {
 		log.Println("Error sending email notification")
 		return err
 	}
-	log.Println("Notification sent")
+	log.Println("Email Notification sent")
 
+	return nil
+}
+
+type PushNotification struct {
+	client *messaging.Client
+}
+
+func NewPushNotification(client messaging.Client) *PushNotification {
+	return &PushNotification{client: &client}
+}
+
+func (p *PushNotification) SendNotification(notification domain.NotificationData) error {
+	log.Println("Sending push notification")
+	var messages []*messaging.Message
+	for _, token := range notification.Address {
+		message := &messaging.Message{
+			Android: &messaging.AndroidConfig{
+				Priority: "high",
+				Notification: &messaging.AndroidNotification{
+					Title: notification.Title,
+					Body:  notification.Message,
+				},
+			},
+			Token: token,
+		}
+		messages = append(messages, message)
+	}
+
+	_, err := p.client.SendEach(context.Background(), messages)
+	if err != nil {
+		log.Println("Error sending push notification")
+		return err
+	}
+	log.Println("Push Notification sent")
 	return nil
 }

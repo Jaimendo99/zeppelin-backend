@@ -3,13 +3,21 @@ package domain
 import "net/smtp"
 
 type NotificationQueue struct {
-	NotificacionId string   `json:"notification_id"`
+	NotificationId string   `json:"notification_id"`
+	Title          string   `json:"title"`
 	Message        string   `json:"message"`
-	Receiver       []string `json:"receiver"`
+	ReceiverId     []string `json:"receiver_id"`
+}
+
+type NotificationData struct {
+	NotificationId string   `json:"notification_id"`
+	Title          string   `json:"title"`
+	Message        string   `json:"message"`
+	Address        []string `json:"address"`
 }
 
 type NotificationService interface {
-	SendNotification(notification NotificationQueue) error
+	SendNotification(notification NotificationData) error
 }
 
 type NotificationRepo interface {

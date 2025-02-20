@@ -16,3 +16,7 @@ func GetMQConnectionString() string {
 func GetSmtpPassword() string {
 	return os.Getenv("SMTP_PASSWORD")
 }
+
+func GetFirebaseConn() string {
+	return os.Getenv("FIREBASE_CONN")
+}
