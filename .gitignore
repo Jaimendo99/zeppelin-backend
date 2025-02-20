@@ -4,3 +4,4 @@ tmp/
 .air.toml
 .env
 *.db
+firebase-conn.json
