@@ -35,14 +35,14 @@ func (n *NotificationRepo) ConsumeFromQueue(queueName string) error {
 		log.Println(notification)
 		if err != nil {
 			log.Println("Error unmarshalling")
-			return err
+			return &json.InvalidUnmarshalError{}
 		}
 
 		emailAddresses := []string{}
 		fcmTokens := []string{}
-		for _, id := range notification.ReceiverId {
+		for _, id := range notification.ReceiversId {
 			log.Println("Getting receiver address: " + id)
-			receiver := n.GetReceiverAddress(id)
+			receiver := n.getReceiverAddress(id)
 			emailAddresses = append(emailAddresses, receiver.Email)
 			fcmTokens = append(fcmTokens, receiver.FCMToken)
 		}
@@ -73,7 +73,7 @@ func (n *NotificationRepo) ConsumeFromQueue(queueName string) error {
 	return nil
 }
 
-func (n NotificationRepo) GetReceiverAddress(id string) ReceiverAddr {
+func (n NotificationRepo) getReceiverAddress(id string) ReceiverAddr {
 	// TODO: Implement logic to get receiver address from database
 	if id == "1" {
 		return ReceiverAddr{

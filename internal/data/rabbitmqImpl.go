@@ -8,10 +8,10 @@ import (
 )
 
 type RabbitMQImpl struct {
-	ch *amqp091.Channel
+	ch domain.AMQPChannel
 }
 
-func NewRabbitMQImpl(ch *amqp091.Channel) *RabbitMQImpl {
+func NewRabbitMQImpl(ch domain.AMQPChannel) *RabbitMQImpl {
 	return &RabbitMQImpl{ch: ch}
 }
 

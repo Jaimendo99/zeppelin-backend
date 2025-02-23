@@ -34,6 +34,7 @@ func DefineNotificationRoutes(e *echo.Echo, m ...echo.MiddlewareFunc) {
 	queueServer := data.NewRabbitMQImpl(config.ProducerChannel)
 
 	repo := data.NewNotificationRepo(db, queueServer, services)
+
 	controller := controller.NewNotificationController(repo)
 
 	e.POST("/notification", controller.SendNotification(), m...)

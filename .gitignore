@@ -2,6 +2,6 @@
 tmp/
 *.out
 .air.toml
-.env
+*.env
 *.db
 firebase-conn.json

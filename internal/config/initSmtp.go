@@ -40,3 +40,7 @@ func CheckSmtpAuth(smtpServer *domain.SmtpConfig) error {
 func GetSmtpConfig() *domain.SmtpConfig {
 	return smtpServer
 }
+
+func SetSmtpConfig(s *domain.SmtpConfig) {
+	smtpServer = s
+}

@@ -71,6 +71,8 @@ func GetValidationFieldError(err error) map[string]string {
 				errorMap[fieldName] = "Invalid email address"
 			case "e164":
 				errorMap[fieldName] = "Invalid phone number"
+			case "min":
+				errorMap[fieldName] = "Minimum value is " + fieldErr.Param()
 			default:
 				errorMap[fieldName] = "Invalid value"
 			}

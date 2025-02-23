@@ -206,3 +206,70 @@ func testHTTPErrorHandler(err error, c echo.Context) {
 		_ = c.JSON(code, map[string]interface{}{"message": msg})
 	}
 }
+
+type MockNotificationRepo struct {
+	sendToQ      func(notification domain.NotificationQueue, queueName string) error
+	consumeFromQ func(queueName string) error
+}
+
+func (m MockNotificationRepo) SendToQueue(notification domain.NotificationQueue, queueName string) error {
+	return m.sendToQ(notification, queueName)
+}
+
+func (m MockNotificationRepo) ConsumeFromQueue(queueName string) error {
+	return m.consumeFromQ(queueName)
+}
+
+func TestSendNotification_Success(t *testing.T) {
+	var notifJson = `{"notification_id":"1","title":"Test","message":"This is a test","receiver_id":["1"]}`
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(notifJson))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	e.Validator = &controller.CustomValidator{Validator: validator.New()}
+
+	mockRepo := MockNotificationRepo{
+		sendToQ: func(notification domain.NotificationQueue, queueName string) error {
+			return nil
+		},
+	}
+	controller := controller.NewNotificationController(mockRepo)
+	handler := controller.SendNotification()
+
+	if assert.NoError(t, handler(c)) {
+		assert.Equal(t, http.StatusOK, rec.Code)
+		expectedMessage := `{"Body":{"message":"Notification sent"}}`
+		assert.JSONEq(t, expectedMessage, rec.Body.String())
+	}
+}
+
+func TestSendNotification_BadRequest(t *testing.T) {
+	var notifJson = `{"notification_id":"","title":"","message":"","receiver_id":[]}`
+	e := echo.New()
+	e.HTTPErrorHandler = testHTTPErrorHandler
+
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(notifJson))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	e.Validator = &controller.CustomValidator{Validator: validator.New()}
+
+	mockRepo := MockNotificationRepo{
+		sendToQ: func(notification domain.NotificationQueue, queueName string) error {
+			return nil
+		},
+	}
+	controller := controller.NewNotificationController(mockRepo)
+	handler := controller.SendNotification()
+
+	err := handler(c)
+	if err != nil {
+		e.HTTPErrorHandler(err, c)
+	}
+
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+	expectedMessage := `{"message":"map[message:This field is required notificationid:This field is required receiversid:Minimum value is 1 title:This field is required]"}`
+	assert.JSONEq(t, expectedMessage, rec.Body.String())
+}

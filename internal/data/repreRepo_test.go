@@ -1,4 +1,3 @@
-// repreRepo_test.go
 package data_test
 
 import (
@@ -31,20 +30,14 @@ func (representativeTestModel) TableName() string {
 
 // setupTestdata creates a fresh SQLite database for testing.
 func setupTestdata(t *testing.T) *gorm.DB {
-	// Remove any existing test database.
-	os.Remove("test.data")
-
-	// Open the SQLite database.
-	gormdata, err := gorm.Open(sqlite.Open("test.data"), &gorm.Config{})
+	os.Remove("test.db")
+	gormdata, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("failed to open test database: %v", err)
 	}
-
-	// Migrate the schema using our test model.
 	if err := gormdata.AutoMigrate(&representativeTestModel{}); err != nil {
 		t.Fatalf("failed to migrate test database: %v", err)
 	}
-
 	return gormdata
 }
 

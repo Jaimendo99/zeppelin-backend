@@ -18,6 +18,9 @@ func NewEmailNotification(s domain.SmtpConfig) *EmailNotification {
 	return &EmailNotification{smtpConfig: s}
 }
 
+// In email_notification.go
+var smtpSendMail = smtp.SendMail
+
 func (e *EmailNotification) SendNotification(notification domain.NotificationData) error {
 	log.Println("Sending email notification")
 	receivers := strings.Join(notification.Address, ",")
@@ -26,29 +29,27 @@ func (e *EmailNotification) SendNotification(notification domain.NotificationDat
 		"\r\n" +
 		notification.Message + "\r\n")
 
-	err := smtp.SendMail(
+	err := smtpSendMail(
 		e.smtpConfig.Host+":"+e.smtpConfig.Port,
 		e.smtpConfig.Auth,
 		e.smtpConfig.Username,
 		notification.Address,
 		msg,
 	)
-
 	if err != nil {
 		log.Println("Error sending email notification")
 		return err
 	}
 	log.Println("Email Notification sent")
-
 	return nil
 }
 
 type PushNotification struct {
-	client *messaging.Client
+	client domain.MessagingClient
 }
 
-func NewPushNotification(client messaging.Client) *PushNotification {
-	return &PushNotification{client: &client}
+func NewPushNotification(client domain.MessagingClient) *PushNotification {
+	return &PushNotification{client: client}
 }
 
 func (p *PushNotification) SendNotification(notification domain.NotificationData) error {
@@ -67,7 +68,6 @@ func (p *PushNotification) SendNotification(notification domain.NotificationData
 		}
 		messages = append(messages, message)
 	}
-
 	_, err := p.client.SendEach(context.Background(), messages)
 	if err != nil {
 		log.Println("Error sending push notification")
