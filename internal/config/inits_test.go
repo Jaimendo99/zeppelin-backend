@@ -20,7 +20,7 @@ type envs struct {
 func getConnectionString() *envs {
 	err := godotenv.Load("../../.env")
 	if err != nil {
-		log.Fatal("Error loading .env file: ", err)
+		// log.Fatal("Error loading .env file: ", err)
 	}
 	return &envs{
 		dbConnStr: os.Getenv("CONNECTION_STRING"),
