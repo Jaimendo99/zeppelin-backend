@@ -43,7 +43,7 @@ func main() {
 
 	defer config.MQConn.Close()
 
-	if err := e.Start("0.0.0.0:8080"); err != nil {
+	if err := e.Start("0.0.0.0:3000"); err != nil {
 		e.Logger.Fatal("error starting server: ", err)
 	}
 
