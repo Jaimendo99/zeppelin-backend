@@ -1,5 +1,5 @@
 // repreRepo_test.go
-package db_test
+package data_test
 
 import (
 	"database/sql"
@@ -11,7 +11,7 @@ import (
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 
-	"zeppelin/internal/db"
+	"zeppelin/internal/data"
 	"zeppelin/internal/domain"
 )
 
@@ -29,28 +29,28 @@ func (representativeTestModel) TableName() string {
 	return "representatives"
 }
 
-// setupTestDB creates a fresh SQLite database for testing.
-func setupTestDB(t *testing.T) *gorm.DB {
+// setupTestdata creates a fresh SQLite database for testing.
+func setupTestdata(t *testing.T) *gorm.DB {
 	// Remove any existing test database.
-	os.Remove("test.db")
+	os.Remove("test.data")
 
 	// Open the SQLite database.
-	gormDB, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
+	gormdata, err := gorm.Open(sqlite.Open("test.data"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("failed to open test database: %v", err)
 	}
 
 	// Migrate the schema using our test model.
-	if err := gormDB.AutoMigrate(&representativeTestModel{}); err != nil {
+	if err := gormdata.AutoMigrate(&representativeTestModel{}); err != nil {
 		t.Fatalf("failed to migrate test database: %v", err)
 	}
 
-	return gormDB
+	return gormdata
 }
 
 func TestCreateRepresentative(t *testing.T) {
-	dbConn := setupTestDB(t)
-	repo := db.NewRepresentativeRepo(dbConn)
+	dataConn := setupTestdata(t)
+	repo := data.NewRepresentativeRepo(dataConn)
 
 	// Create a new representative using your production type.
 	rep := domain.RepresentativeDb{
@@ -65,7 +65,7 @@ func TestCreateRepresentative(t *testing.T) {
 
 	// Retrieve the record directly using the test model.
 	var testRep representativeTestModel
-	result := dbConn.First(&testRep)
+	result := dataConn.First(&testRep)
 	assert.NoError(t, result.Error, "expected to retrieve representative")
 	assert.Equal(t, rep.Name, testRep.Name, "Name should match")
 	assert.Equal(t, rep.Lastname, testRep.Lastname, "Lastname should match")
@@ -74,8 +74,8 @@ func TestCreateRepresentative(t *testing.T) {
 }
 
 func TestGetRepresentative(t *testing.T) {
-	dbConn := setupTestDB(t)
-	repo := db.NewRepresentativeRepo(dbConn)
+	dataConn := setupTestdata(t)
+	repo := data.NewRepresentativeRepo(dataConn)
 
 	// Insert a test record using the test model so we have a generated representative_id.
 	testRep := representativeTestModel{
@@ -84,7 +84,7 @@ func TestGetRepresentative(t *testing.T) {
 		Email:       sql.NullString{String: "jaimendo26@gmail.com", Valid: true},
 		PhoneNumber: sql.NullString{String: "+129129122", Valid: true},
 	}
-	err := dbConn.Create(&testRep).Error
+	err := dataConn.Create(&testRep).Error
 	assert.NoError(t, err, "expected no error creating test representative")
 
 	// Retrieve via the repository.
@@ -99,8 +99,8 @@ func TestGetRepresentative(t *testing.T) {
 }
 
 func TestGetAllRepresentatives(t *testing.T) {
-	dbConn := setupTestDB(t)
-	repo := db.NewRepresentativeRepo(dbConn)
+	dataConn := setupTestdata(t)
+	repo := data.NewRepresentativeRepo(dataConn)
 
 	// Insert multiple records.
 	reps := []representativeTestModel{
@@ -119,7 +119,7 @@ func TestGetAllRepresentatives(t *testing.T) {
 	}
 
 	for _, rep := range reps {
-		err := dbConn.Create(&rep).Error
+		err := dataConn.Create(&rep).Error
 		assert.NoError(t, err, "expected no error creating record")
 	}
 
@@ -129,8 +129,8 @@ func TestGetAllRepresentatives(t *testing.T) {
 }
 
 func TestUpdateRepresentative(t *testing.T) {
-	dbConn := setupTestDB(t)
-	repo := db.NewRepresentativeRepo(dbConn)
+	dataConn := setupTestdata(t)
+	repo := data.NewRepresentativeRepo(dataConn)
 
 	// Insert a test record.
 	testRep := representativeTestModel{
@@ -139,7 +139,7 @@ func TestUpdateRepresentative(t *testing.T) {
 		Email:       sql.NullString{String: "jaimendo26@gmail.com", Valid: true},
 		PhoneNumber: sql.NullString{String: "+129129122", Valid: true},
 	}
-	err := dbConn.Create(&testRep).Error
+	err := dataConn.Create(&testRep).Error
 	assert.NoError(t, err, "expected no error creating record for update test")
 
 	updatedInput := domain.RepresentativeInput{
@@ -151,7 +151,7 @@ func TestUpdateRepresentative(t *testing.T) {
 
 	// Call UpdateRepresentative.
 	err = repo.UpdateRepresentative(testRep.RepresentativeID, updatedInput)
-	// Since your production model (RepresentativeDb) does not include the primary key, GORM
+	// Since your production model (Representativedata) does not include the primary key, GORM
 	// cannot determine the record to update and returns an error.
 	// If you fix your model to include the primary key, this test should verify the update.
 	assert.Error(t, err, "expected an error updating representative due to missing primary key in model")
@@ -159,7 +159,7 @@ func TestUpdateRepresentative(t *testing.T) {
 	// Uncomment the following block if you update your production code to include the primary key.
 	/*
 		var updatedRep representativeTestModel
-		err = dbConn.Where("representative_id = ?", testRep.RepresentativeID).First(&updatedRep).Error
+		err = dataConn.Where("representative_id = ?", testRep.RepresentativeID).First(&updatedRep).Error
 		assert.NoError(t, err, "expected to retrieve updated representative")
 		assert.Equal(t, updatedInput.Name, updatedRep.Name, "Name should be updated")
 		assert.Equal(t, updatedInput.Lastname, updatedRep.Lastname, "Lastname should be updated")
