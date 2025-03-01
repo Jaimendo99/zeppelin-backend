@@ -1,6 +1,7 @@
 package services_test
 
 import (
+	"errors"
 	"testing"
 	"zeppelin/internal/domain"
 	"zeppelin/internal/services"
@@ -58,4 +59,35 @@ func TestParamToId_Invalid(t *testing.T) {
 	id, err := services.ParamToId("abc")
 	assert.Error(t, err, "Expected error for non-numeric string")
 	assert.Equal(t, -1, id, "Expected id to be -1 on error")
+}
+
+type MockAuthService struct{}
+
+func (m *MockAuthService) VerifyToken(token string) (*domain.AuthResponse, error) {
+	if token == "valid-token" {
+		return &domain.AuthResponse{
+			AccessToken: "user_1234",
+			TokenType:   "Bearer",
+			ExpiresIn:   3600,
+		}, nil
+	}
+	return nil, errors.New("token inválido o sesión no encontrada")
+}
+
+func TestVerifyToken_Valid(t *testing.T) {
+	authService := &MockAuthService{}
+
+	resp, err := authService.VerifyToken("valid-token")
+	assert.NoError(t, err, "No se esperaba error con un token válido")
+	assert.NotNil(t, resp, "La respuesta no debe ser nil")
+	assert.Equal(t, "user_1234", resp.AccessToken, "El AccessToken debe coincidir")
+}
+
+func TestVerifyToken_Invalid(t *testing.T) {
+	authService := &MockAuthService{}
+
+	resp, err := authService.VerifyToken("invalid-token")
+	assert.Error(t, err, "Se esperaba error con un token inválido")
+	assert.Nil(t, resp, "La respuesta debe ser nil en caso de error")
+	assert.Equal(t, "token inválido o sesión no encontrada", err.Error())
 }
