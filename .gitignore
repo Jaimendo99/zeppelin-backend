@@ -1,6 +1,12 @@
+# Ignorar archivos binarios y temporales
 .exe*
 tmp/
 *.out
 .air.toml
-.env
 *.db
+
+# Ignorar archivos de entorno
+.env
+
+# Ignorar archivos de JetBrains (GoLand, WebStorm, etc.)
+.idea/
