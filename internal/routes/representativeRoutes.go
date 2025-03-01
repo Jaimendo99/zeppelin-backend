@@ -5,6 +5,7 @@ import (
 	"zeppelin/internal/controller"
 	"zeppelin/internal/data"
 	"zeppelin/internal/domain"
+	"zeppelin/internal/middleware"
 	"zeppelin/internal/services"
 
 	"github.com/labstack/echo/v4"
@@ -12,12 +13,19 @@ import (
 
 func DefineRepresentativeRoutes(e *echo.Echo, m ...echo.MiddlewareFunc) {
 	repo := data.NewRepresentativeRepo(config.DB)
+
 	recontroller := controller.RepresentativeController{Repo: repo}
 
-	e.GET("/representative/:representative_id", recontroller.GetRepresentative(), m...)
-	e.POST("/representative", recontroller.CreateRepresentative(), m...)
-	e.GET("/representatives", recontroller.GetAllRepresentatives(), m...)
-	e.PUT("/representative/:representative_id", recontroller.UpdateRepresentative(), m...)
+	authService, err := services.NewAuthService()
+	if err != nil {
+		e.Logger.Fatal("Error inicializando AuthService: ", err)
+		return
+	}
+
+	e.GET("/representative/:representative_id", recontroller.GetRepresentative(), middleware.AuthMiddleware(authService))
+	e.POST("/representative", recontroller.CreateRepresentative(), middleware.AuthMiddleware(authService))
+	e.GET("/representatives", recontroller.GetAllRepresentatives(), middleware.AuthMiddleware(authService))
+	e.PUT("/representative/:representative_id", recontroller.UpdateRepresentative(), middleware.AuthMiddleware(authService))
 }
 
 func DefineNotificationRoutes(e *echo.Echo, m ...echo.MiddlewareFunc) {

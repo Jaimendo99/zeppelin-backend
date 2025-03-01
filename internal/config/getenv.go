@@ -20,3 +20,7 @@ func GetSmtpPassword() string {
 func GetFirebaseConn() string {
 	return os.Getenv("FIREBASE_CONN")
 }
+
+func GetClerkConfig() string {
+	return os.Getenv("CLERK_API_KEY")
+}

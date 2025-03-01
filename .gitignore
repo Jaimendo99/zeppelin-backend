@@ -2,6 +2,11 @@
 tmp/
 *.out
 .air.toml
-.env
 *.db
 firebase-conn.json
+
+# Ignorar archivos de entorno
+.env
+
+# Ignorar archivos de JetBrains (GoLand, WebStorm, etc.)
+.idea/
