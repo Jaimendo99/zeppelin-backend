@@ -21,7 +21,7 @@ type RepresentativeInput struct {
 	Name        string `json:"name" validate:"required"`
 	Lastname    string `json:"lastname" validate:"required"`
 	Email       string `json:"email" validate:"omitempty,email"`
-	PhoneNumber string `json:"phone_number" validate:"omitempty,e164" gorm:"column:phone"`
+	PhoneNumber string `json:"phone_number" validate:"omitempty,e164" gorm:"column:phone_number"`
 }
 
 type RepresentativeRepo interface {

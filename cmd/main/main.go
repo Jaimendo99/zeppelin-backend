@@ -19,7 +19,7 @@ func init() {
 		log.Fatalf("error connecting to database: %v", err)
 	}
 
-	if err := config.InitMQ(config.GetMQConnectionString()); err != nil {
+	/*if err := config.InitMQ(config.GetMQConnectionString()); err != nil {
 		log.Fatalf("error connecting to message queue: %v", err)
 	}
 
@@ -30,7 +30,7 @@ func init() {
 	config.InitSmtp(config.GetSmtpPassword())
 	if err := config.CheckSmtpAuth(config.GetSmtpConfig()); err != nil {
 		log.Fatalf("error authenticating smtp: %v", err)
-	}
+	}*/
 
 }
 
@@ -39,7 +39,7 @@ func main() {
 	e.Validator = &controller.CustomValidator{Validator: validator.New()}
 
 	routes.DefineRepresentativeRoutes(e)
-	routes.DefineNotificationRoutes(e)
+	//routes.DefineNotificationRoutes(e)
 
 	defer config.MQConn.Close()
 
