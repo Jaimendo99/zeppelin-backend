@@ -33,9 +33,17 @@ func (s *AuthService) VerifyToken(token string) (*clerk.SessionClaims, error) {
 	if err != nil || claims == nil {
 		return nil, errors.New("token inválido o sesión no encontrada")
 	}
-
 	return claims, nil
 }
+
+func (s *AuthService) DecodeToken(token string) (*clerk.TokenClaims, error) {
+	claims, err := s.client.DecodeToken(token)
+	if err != nil || claims == nil {
+		return nil, errors.New("token inválido o sesión no encontrada")
+	}
+	return claims, nil
+}
+
 func boolPtr(b bool) *bool {
 	return &b
 }

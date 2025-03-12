@@ -21,7 +21,7 @@ func DefineStudentRoutes(e *echo.Echo, m ...echo.MiddlewareFunc) {
 
 	userController := controller.UserController{AuthService: authService, UserRepo: repo}
 
-	e.POST("/student/register", userController.RegisterUser("org:student"))
-	e.GET("/student/me", userController.GetUser(), middleware.AuthMiddleware(authService))
-	e.GET("/students", userController.GetAllUsers(), middleware.AuthMiddleware(authService))
+	e.POST("/student/register", userController.RegisterUser("org:student"), middleware.RoleMiddleware(authService, "org:admin"))
+	e.GET("/student/me", userController.GetUser(), middleware.RoleMiddleware(authService, "org:student"))
+	e.GET("/students", userController.GetAllStudents(), middleware.RoleMiddleware(authService, "org:admin", "org:teacher"))
 }

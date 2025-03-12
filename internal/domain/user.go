@@ -9,7 +9,7 @@ type User struct {
 }
 
 type UserDb struct {
-	UserID   string
+	UserID   string `json:"id"`
 	Name     string
 	Lastname string
 	Email    string
@@ -25,7 +25,8 @@ type UserInput struct {
 type UserRepo interface {
 	CreateUser(user UserDb) error
 	GetUser(userID string) (*UserDb, error)
-	GetAllUsers() ([]UserDb, error)
+	GetAllTeachers() ([]UserDb, error)
+	GetAllStudents() ([]UserDb, error)
 }
 
 func (UserDb) TableName() string {

@@ -31,11 +31,20 @@ func (r *userRepo) GetUser(userID string) (*domain.UserDb, error) {
 	return &user, nil
 }
 
-func (r *userRepo) GetAllUsers() ([]domain.UserDb, error) {
-	var users []domain.UserDb
-	result := r.db.Find(&users)
+func (r *userRepo) GetAllTeachers() ([]domain.UserDb, error) {
+	var teachers []domain.UserDb
+	result := r.db.Where("type_id = ?", 2).Find(&teachers)
 	if result.Error != nil {
 		return nil, result.Error
 	}
-	return users, nil
+	return teachers, nil
+}
+
+func (r *userRepo) GetAllStudents() ([]domain.UserDb, error) {
+	var students []domain.UserDb
+	result := r.db.Where("type_id = ?", 3).Find(&students)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return students, nil
 }

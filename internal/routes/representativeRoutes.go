@@ -22,10 +22,10 @@ func DefineRepresentativeRoutes(e *echo.Echo, m ...echo.MiddlewareFunc) {
 		return
 	}
 
-	e.GET("/representative/:representative_id", recontroller.GetRepresentative(), middleware.AuthMiddleware(authService))
-	e.POST("/representative", recontroller.CreateRepresentative(), middleware.AuthMiddleware(authService))
-	e.GET("/representatives", recontroller.GetAllRepresentatives(), middleware.AuthMiddleware(authService))
-	e.PUT("/representative/:representative_id", recontroller.UpdateRepresentative(), middleware.AuthMiddleware(authService))
+	e.GET("/representative/:representative_id", recontroller.GetRepresentative(), middleware.RoleMiddleware(authService, "org:admin", "org:teacher"))
+	e.POST("/representative", recontroller.CreateRepresentative(), middleware.RoleMiddleware(authService, "org:admin", "org:teacher"))
+	e.GET("/representatives", recontroller.GetAllRepresentatives(), middleware.RoleMiddleware(authService, "org:admin", "org:teacher"))
+	e.PUT("/representative/:representative_id", recontroller.UpdateRepresentative(), middleware.RoleMiddleware(authService, "org:admin", "org:teacher"))
 }
 
 func DefineNotificationRoutes(e *echo.Echo, m ...echo.MiddlewareFunc) {

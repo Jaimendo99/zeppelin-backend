@@ -63,9 +63,16 @@ func (c *UserController) GetUser() echo.HandlerFunc {
 	}
 }
 
-func (c *UserController) GetAllUsers() echo.HandlerFunc {
+func (c *UserController) GetAllTeachers() echo.HandlerFunc {
 	return func(e echo.Context) error {
-		students, err := c.UserRepo.GetAllUsers()
+		teachers, err := c.UserRepo.GetAllTeachers()
+		return ReturnReadResponse(e, err, teachers)
+	}
+}
+
+func (c *UserController) GetAllStudents() echo.HandlerFunc {
+	return func(e echo.Context) error {
+		students, err := c.UserRepo.GetAllStudents()
 		return ReturnReadResponse(e, err, students)
 	}
 }

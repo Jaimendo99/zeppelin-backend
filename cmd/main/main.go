@@ -39,15 +39,16 @@ func main() {
 	e := echo.New()
 	// ✅ Agregar Middleware CORS
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins: []string{"http://localhost:3000"}, // Permitir peticiones desde el frontend
+		AllowOrigins: []string{"http://localhost:5173"}, // Permitir peticiones desde el frontend
 		AllowMethods: []string{echo.GET, echo.POST, echo.PUT, echo.DELETE},
 		AllowHeaders: []string{"Authorization", "Content-Type"},
 	}))
 	e.Validator = &controller.CustomValidator{Validator: validator.New()}
 
 	routes.DefineRepresentativeRoutes(e)
-	routes.DefineStudentRoutes(e)
 	routes.DefineTeacherRoutes(e)
+	routes.DefineStudentRoutes(e)
+	routes.DefineCourseRoutes(e)
 	//routes.DefineNotificationRoutes(e)
 
 	defer config.MQConn.Close()
