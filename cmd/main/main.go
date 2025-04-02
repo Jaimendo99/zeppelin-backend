@@ -49,6 +49,7 @@ func main() {
 	routes.DefineTeacherRoutes(e)
 	routes.DefineStudentRoutes(e)
 	routes.DefineCourseRoutes(e)
+	routes.DefineAssignmentRoutes(e)
 	//routes.DefineNotificationRoutes(e)
 
 	defer config.MQConn.Close()

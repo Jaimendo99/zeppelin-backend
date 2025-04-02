@@ -6,6 +6,7 @@ type CourseDB struct {
 	StartDate   string `json:"start_date" validate:"required"`
 	Title       string `json:"title" validate:"required"`
 	Description string `json:"description"`
+	QRCode      string `json:"qr_code" gorm:"unique"`
 }
 
 type CourseInput struct {
