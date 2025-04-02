@@ -1,7 +1,10 @@
 package controller
 
 import (
+	"crypto/rand"
+	"encoding/base32"
 	"github.com/labstack/echo/v4"
+	"strings"
 	"zeppelin/internal/domain"
 )
 
@@ -28,6 +31,7 @@ func (c *CourseController) CreateCourse() echo.HandlerFunc {
 			StartDate:   input.StartDate,
 			Title:       input.Title,
 			Description: input.Description,
+			QRCode:      generateQRCode(),
 		}
 
 		err := c.Repo.CreateCourse(course)
@@ -63,4 +67,16 @@ func (c *CourseController) GetCoursesByStudent() echo.HandlerFunc {
 		courses, err := c.Repo.GetCoursesByStudent(userID)
 		return ReturnReadResponse(e, err, courses)
 	}
+}
+
+func generateQRCode() string {
+	bytes := make([]byte, 5)
+	_, err := rand.Read(bytes)
+	if err != nil {
+		return ""
+	}
+	code := base32.StdEncoding.EncodeToString(bytes)
+	code = strings.TrimRight(code, "=")
+	code = strings.ToLower(code[:4]) + code[4:6]
+	return code
 }
