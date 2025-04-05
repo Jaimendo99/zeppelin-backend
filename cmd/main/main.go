@@ -51,7 +51,7 @@ func main() {
 	routes.DefineCourseRoutes(e)
 	routes.DefineAssignmentRoutes(e)
 	//routes.DefineNotificationRoutes(e)
-
+	routes.DefineWebSocketRoutes(e)
 	defer config.MQConn.Close()
 
 	if err := e.Start("0.0.0.0:8080"); err != nil {

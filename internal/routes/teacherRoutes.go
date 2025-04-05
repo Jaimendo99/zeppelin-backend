@@ -22,6 +22,5 @@ func DefineTeacherRoutes(e *echo.Echo, m ...echo.MiddlewareFunc) {
 	userController := controller.UserController{AuthService: authService, UserRepo: repo}
 
 	e.POST("/teacher/register", userController.RegisterUser("org:teacher"), middleware.RoleMiddleware(authService, "org:admin"))
-	e.GET("/teacher/me", userController.GetUser(), middleware.RoleMiddleware(authService, "org:teacher"))
 	e.GET("/teachers", userController.GetAllTeachers(), middleware.RoleMiddleware(authService, "org:admin", "org:teacher", "org:student"))
 }

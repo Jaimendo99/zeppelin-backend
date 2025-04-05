@@ -10,6 +10,29 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+// ✅ Esta función permite validar token + rol manualmente (por ejemplo, en WebSockets)
+func ValidateTokenAndRole(token string, authService *services.AuthService, requiredRoles ...string) (*clerk.TokenClaims, error) {
+	if token == "" {
+		return nil, errors.New("token requerido")
+	}
+
+	claims, err := authService.DecodeToken(token)
+	if err != nil {
+		return nil, errors.New("token inválido o sesión no encontrada")
+	}
+
+	role, err := extractRoleFromClaims(claims)
+	if err != nil {
+		return nil, errors.New("no se pudo extraer el rol del usuario")
+	}
+
+	if len(requiredRoles) > 0 && !contains(requiredRoles, role) {
+		return nil, errors.New("acceso denegado: rol no autorizado")
+	}
+
+	return claims, nil
+}
+
 func RoleMiddleware(authService *services.AuthService, requiredRoles ...string) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
