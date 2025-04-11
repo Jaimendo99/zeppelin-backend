@@ -21,7 +21,7 @@ type representativeTestModel struct {
 	Name             string         `gorm:"column:name"`
 	Lastname         string         `gorm:"column:lastname"`
 	Email            sql.NullString `gorm:"column:email"`
-	PhoneNumber      sql.NullString `gorm:"column:phone"`
+	PhoneNumber      sql.NullString `gorm:"column:phone_number"`
 }
 
 // TableName tells GORM which table name to use.
@@ -32,10 +32,10 @@ func (representativeTestModel) TableName() string {
 // setupTestdata creates a fresh SQLite database for testing.
 func setupTestdata(t *testing.T) *gorm.DB {
 	// Remove any existing test database.
-	os.Remove("test.data")
+	os.Remove("test.sql")
 
 	// Open the SQLite database.
-	gormdata, err := gorm.Open(sqlite.Open("test.data"), &gorm.Config{})
+	gormdata, err := gorm.Open(sqlite.Open("test.sql"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("failed to open test database: %v", err)
 	}

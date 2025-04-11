@@ -10,7 +10,7 @@ import (
 )
 
 type AuthService struct {
-	client clerk.Client
+	Client clerk.Client
 	repo   domain.UserRepo
 }
 
@@ -25,11 +25,11 @@ func NewAuthService() (*AuthService, error) {
 		return nil, err
 	}
 
-	return &AuthService{client: client}, nil
+	return &AuthService{Client: client}, nil
 }
 
 func (s *AuthService) VerifyToken(token string) (*clerk.SessionClaims, error) {
-	claims, err := s.client.VerifyToken(token)
+	claims, err := s.Client.VerifyToken(token)
 	if err != nil || claims == nil {
 		return nil, errors.New("token inválido o sesión no encontrada")
 	}
@@ -37,7 +37,7 @@ func (s *AuthService) VerifyToken(token string) (*clerk.SessionClaims, error) {
 }
 
 func (s *AuthService) DecodeToken(token string) (*clerk.TokenClaims, error) {
-	claims, err := s.client.DecodeToken(token)
+	claims, err := s.Client.DecodeToken(token)
 	if err != nil || claims == nil {
 		return nil, errors.New("token inválido o sesión no encontrada")
 	}
@@ -48,14 +48,14 @@ func boolPtr(b bool) *bool {
 	return &b
 }
 func (s *AuthService) CreateUser(input domain.UserInput, organizationID string, role string) (*domain.User, error) {
-	if s.client == nil {
+	if s.Client == nil {
 		return nil, errors.New("error interno: Clerk Client no está inicializado")
 	}
 
 	publicMetadata := map[string]string{"role": role}
 	publicMetadataJSON, _ := json.Marshal(publicMetadata)
 
-	newUser, err := s.client.Users().Create(clerk.CreateUserParams{
+	newUser, err := s.Client.Users().Create(clerk.CreateUserParams{
 		EmailAddresses:          []string{input.Email},
 		FirstName:               &input.Name,
 		LastName:                &input.Lastname,
@@ -67,7 +67,7 @@ func (s *AuthService) CreateUser(input domain.UserInput, organizationID string, 
 	}
 
 	if organizationID != "" {
-		_, err := s.client.Organizations().CreateMembership(organizationID, clerk.CreateOrganizationMembershipParams{
+		_, err := s.Client.Organizations().CreateMembership(organizationID, clerk.CreateOrganizationMembershipParams{
 			UserID: newUser.ID,
 			Role:   role,
 		})

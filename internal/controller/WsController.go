@@ -6,10 +6,11 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/gorilla/websocket"
-	"github.com/labstack/echo/v4"
 	"zeppelin/internal/middleware"
 	"zeppelin/internal/services"
+
+	"github.com/gorilla/websocket"
+	"github.com/labstack/echo/v4"
 )
 
 var upgrader = websocket.Upgrader{
@@ -37,7 +38,7 @@ func sendStatusUpdate(userID string) {
 		platforms[uc.Platform]++
 	}
 
-	status := map[string]interface{}{
+	status := map[string]any{
 		"type":        "status_update",
 		"user_id":     userID,
 		"connections": len(conns),
@@ -59,6 +60,7 @@ func sendStatusUpdate(userID string) {
 }
 
 func WebSocketHandler(authService *services.AuthService) echo.HandlerFunc {
+	fmt.Printf("🔌 WebSocket Handler inicializado\n")
 	return func(c echo.Context) error {
 		token := c.QueryParam("token")
 		platform := c.QueryParam("platform")
@@ -70,7 +72,7 @@ func WebSocketHandler(authService *services.AuthService) echo.HandlerFunc {
 			platform = "unknown"
 		}
 
-		claims, err := middleware.ValidateTokenAndRole(token, authService, "org:student")
+		claims, err := middleware.ValidateTokenAndRole(token, authService, "org:student", "org:teacher", "org:admin")
 		if err != nil {
 			fmt.Printf("⛔ Token inválido: %v\n", err)
 			return c.String(http.StatusUnauthorized, "Token inválido")
