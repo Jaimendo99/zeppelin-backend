@@ -1,11 +1,11 @@
 package config
 
 import (
+	"gorm.io/gorm/logger"
 	"sync"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 var (

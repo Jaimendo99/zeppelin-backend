@@ -17,7 +17,7 @@ func TestRepresetativeInputToDb_FullFields(t *testing.T) {
 		PhoneNumber: "+129129122",
 	}
 
-	dbModel := services.RepresetativeInputToDb(&input)
+	dbModel := services.RepresentativesInputToDb(&input)
 
 	assert.Equal(t, input.Name, dbModel.Name, "Name should match")
 	assert.Equal(t, input.Lastname, dbModel.Lastname, "Lastname should match")
@@ -37,7 +37,7 @@ func TestRepresetativeInputToDb_EmptyFields(t *testing.T) {
 		PhoneNumber: "",
 	}
 
-	dbModel := services.RepresetativeInputToDb(&input)
+	dbModel := services.RepresentativesInputToDb(&input)
 
 	assert.Equal(t, input.Name, dbModel.Name, "Name should match")
 	assert.Equal(t, input.Lastname, dbModel.Lastname, "Lastname should match")

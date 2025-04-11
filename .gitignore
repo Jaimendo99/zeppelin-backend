@@ -3,6 +3,7 @@ tmp/
 *.out
 .air.toml
 *.db
+*.sql
 firebase-conn.json
 
 # Ignorar archivos de entorno

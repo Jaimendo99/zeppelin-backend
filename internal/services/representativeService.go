@@ -6,7 +6,7 @@ import (
 	"zeppelin/internal/domain"
 )
 
-func RepresetativeInputToDb(representative *domain.RepresentativeInput) domain.RepresentativeDb {
+func RepresentativesInputToDb(representative *domain.RepresentativeInput) domain.RepresentativeDb {
 	return domain.RepresentativeDb{
 		Name:     representative.Name,
 		Lastname: representative.Lastname,

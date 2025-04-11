@@ -2,15 +2,15 @@ package middleware
 
 import (
 	"errors"
-	"github.com/clerkinc/clerk-sdk-go/clerk"
 	"net/http"
 	"strings"
 	"zeppelin/internal/services"
 
+	"github.com/clerkinc/clerk-sdk-go/clerk"
+
 	"github.com/labstack/echo/v4"
 )
 
-// ✅ Esta función permite validar token + rol manualmente (por ejemplo, en WebSockets)
 func ValidateTokenAndRole(token string, authService *services.AuthService, requiredRoles ...string) (*clerk.TokenClaims, error) {
 	if token == "" {
 		return nil, errors.New("token requerido")
@@ -18,6 +18,10 @@ func ValidateTokenAndRole(token string, authService *services.AuthService, requi
 
 	claims, err := authService.DecodeToken(token)
 	if err != nil {
+		return nil, errors.New("token inválido o sesión no encontrada")
+	}
+	sessionClaims, err := authService.Client.VerifyToken(token)
+	if err != nil || sessionClaims == nil {
 		return nil, errors.New("token inválido o sesión no encontrada")
 	}
 
@@ -41,14 +45,16 @@ func RoleMiddleware(authService *services.AuthService, requiredRoles ...string) 
 				return echo.NewHTTPError(http.StatusUnauthorized, "Token de autorización requerido")
 			}
 
-			tokenParts := strings.Split(authHeader, " ")
-			if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
-				return echo.NewHTTPError(http.StatusUnauthorized, "Formato de token inválido")
-			}
-			token := tokenParts[1]
+			headerToken := strings.TrimSpace(c.Request().Header.Get("Authorization"))
+			token := strings.TrimPrefix(headerToken, "Bearer ")
 
 			claims, err := authService.DecodeToken(token)
 			if err != nil {
+				return echo.NewHTTPError(http.StatusUnauthorized, "Token inválido o sesión no encontrada")
+			}
+
+			sessionClaims, err := authService.Client.VerifyToken(token)
+			if err != nil || sessionClaims == nil {
 				return echo.NewHTTPError(http.StatusUnauthorized, "Token inválido o sesión no encontrada")
 			}
 

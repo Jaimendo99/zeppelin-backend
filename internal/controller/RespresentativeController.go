@@ -17,7 +17,7 @@ func (c *RepresentativeController) CreateRepresentative() echo.HandlerFunc {
 		if err := ValidateAndBind(e, &representative); err != nil {
 			return err
 		}
-		repeDb := services.RepresetativeInputToDb(&representative)
+		repeDb := services.RepresentativesInputToDb(&representative)
 		err := c.Repo.CreateRepresentative(repeDb)
 		return ReturnWriteResponse(e, err, struct {
 			Message string `json:"message"`

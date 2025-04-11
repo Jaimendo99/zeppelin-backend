@@ -14,7 +14,7 @@ type RepresentativeDb struct {
 	Name        string
 	Lastname    string
 	Email       sql.NullString
-	PhoneNumber sql.NullString `gorm:"column:phone"`
+	PhoneNumber sql.NullString `gorm:"column:phone_number"`
 }
 
 type RepresentativeInput struct {
