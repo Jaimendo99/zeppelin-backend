@@ -1,6 +1,10 @@
 package domain
 
-import "net/smtp"
+import (
+	"context"
+	"firebase.google.com/go/v4/messaging"
+	"net/smtp"
+)
 
 type NotificationQueue struct {
 	NotificationId string   `json:"notification_id"`
@@ -23,6 +27,12 @@ type NotificationService interface {
 type NotificationRepo interface {
 	SendToQueue(notification NotificationQueue, queueName string) error
 	ConsumeFromQueue(queueName string) error
+}
+
+// FirebaseMessenger defines the interface for sending FCM messages
+type FirebaseMessenger interface {
+	SendEach(ctx context.Context, messages []*messaging.Message) (*messaging.BatchResponse, error)
+	// Add other methods from messaging.Client if your service uses them
 }
 
 type SmtpConfig struct {

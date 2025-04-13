@@ -20,7 +20,7 @@ func WsAuthMiddleware(as services.AuthService, requiredRoles ...string) echo.Mid
 				return controller.ReturnWriteResponse(c, errors.New("token inválido o sesión no encontrada"), nil)
 			}
 
-			sessionClaims, err := as.Client.VerifyToken(token)
+			sessionClaims, err := as.VerifyToken(token)
 			if err != nil || sessionClaims == nil {
 				return controller.ReturnWriteResponse(c, errors.New("token inválido o sesión no encontrada"), nil)
 			}

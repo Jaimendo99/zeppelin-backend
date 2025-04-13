@@ -10,6 +10,8 @@ import (
 	"firebase.google.com/go/v4/messaging"
 )
 
+var SmtpSendMail = smtp.SendMail //nolint:gochecknoglobals
+
 type EmailNotification struct {
 	smtpConfig domain.SmtpConfig
 }
@@ -22,12 +24,13 @@ func (e *EmailNotification) SendNotification(notification domain.NotificationDat
 	log.Println("Sending email notification")
 	receivers := strings.Join(notification.Address, ",")
 	msg := []byte("To: " + receivers + "\r\n" +
-		"Subject: Notification\r\n" +
+		"Subject: Notification\r\n" + // Consider making Subject dynamic if needed
 		"\r\n" +
 		notification.Message + "\r\n")
 
-	err := smtp.SendMail(
-		e.smtpConfig.Host+":"+e.smtpConfig.Port,
+	addr := e.smtpConfig.Host + ":" + e.smtpConfig.Port
+	err := SmtpSendMail(
+		addr,
 		e.smtpConfig.Auth,
 		e.smtpConfig.Username,
 		notification.Address,
@@ -35,7 +38,7 @@ func (e *EmailNotification) SendNotification(notification domain.NotificationDat
 	)
 
 	if err != nil {
-		log.Println("Error sending email notification")
+		log.Printf("Error sending email notification: %v", err) // Log the error
 		return err
 	}
 	log.Println("Email Notification sent")
@@ -44,11 +47,11 @@ func (e *EmailNotification) SendNotification(notification domain.NotificationDat
 }
 
 type PushNotification struct {
-	client *messaging.Client
+	client domain.FirebaseMessenger
 }
 
-func NewPushNotification(client messaging.Client) *PushNotification {
-	return &PushNotification{client: &client}
+func NewPushNotification(client domain.FirebaseMessenger) *PushNotification {
+	return &PushNotification{client: client}
 }
 
 func (p *PushNotification) SendNotification(notification domain.NotificationData) error {
@@ -68,9 +71,16 @@ func (p *PushNotification) SendNotification(notification domain.NotificationData
 		messages = append(messages, message)
 	}
 
+	// Handle empty messages case to avoid unnecessary API call
+	if len(messages) == 0 {
+		log.Println("No push notification tokens provided, skipping send.")
+		return nil // Or return an error if appropriate
+	}
+
+	// Call the method via the interface
 	_, err := p.client.SendEach(context.Background(), messages)
 	if err != nil {
-		log.Println("Error sending push notification")
+		log.Printf("Error sending push notification: %v", err) // Log the error
 		return err
 	}
 	log.Println("Push Notification sent")

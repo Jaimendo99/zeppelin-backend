@@ -20,7 +20,7 @@ func ValidateTokenAndRole(token string, authService *services.AuthService, requi
 	if err != nil {
 		return nil, errors.New("token inválido o sesión no encontrada")
 	}
-	sessionClaims, err := authService.Client.VerifyToken(token)
+	sessionClaims, err := authService.VerifyToken(token)
 	if err != nil || sessionClaims == nil {
 		return nil, errors.New("token inválido o sesión no encontrada")
 	}
@@ -53,7 +53,7 @@ func RoleMiddleware(authService *services.AuthService, requiredRoles ...string) 
 				return controller.ReturnWriteResponse(c, errors.New("token inválido o sesión no encontrada"), nil)
 			}
 
-			sessionClaims, err := authService.Client.VerifyToken(token)
+			sessionClaims, err := authService.VerifyToken(token)
 			if err != nil || sessionClaims == nil {
 				return controller.ReturnWriteResponse(c, errors.New("token inválido o sesión no encontrada"), nil)
 			}

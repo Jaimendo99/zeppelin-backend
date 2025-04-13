@@ -9,8 +9,9 @@ import (
 	"github.com/clerkinc/clerk-sdk-go/clerk"
 )
 
+// AuthService uses the ClerkInterface instead of directly using clerk.Client
 type AuthService struct {
-	Client clerk.Client
+	Clerk domain.ClerkInterface
 }
 
 func NewAuthService() (*AuthService, error) {
@@ -24,11 +25,12 @@ func NewAuthService() (*AuthService, error) {
 		return nil, err
 	}
 
-	return &AuthService{Client: client}, nil
+	clerkWrapper := &domain.ClerkWrapper{Client: client}
+	return &AuthService{Clerk: clerkWrapper}, nil
 }
 
 func (s *AuthService) VerifyToken(token string) (*clerk.SessionClaims, error) {
-	claims, err := s.Client.VerifyToken(token)
+	claims, err := s.Clerk.VerifyToken(token)
 	if err != nil || claims == nil {
 		return nil, errors.New("token inválido o sesión no encontrada")
 	}
@@ -36,7 +38,7 @@ func (s *AuthService) VerifyToken(token string) (*clerk.SessionClaims, error) {
 }
 
 func (s *AuthService) DecodeToken(token string) (*clerk.TokenClaims, error) {
-	claims, err := s.Client.DecodeToken(token)
+	claims, err := s.Clerk.DecodeToken(token)
 	if err != nil || claims == nil {
 		return nil, errors.New("token inválido o sesión no encontrada")
 	}
@@ -46,15 +48,16 @@ func (s *AuthService) DecodeToken(token string) (*clerk.TokenClaims, error) {
 func boolPtr(b bool) *bool {
 	return &b
 }
+
 func (s *AuthService) CreateUser(input domain.UserInput, organizationID string, role string) (*domain.User, error) {
-	if s.Client == nil {
+	if s.Clerk == nil {
 		return nil, errors.New("error interno: Clerk Client no está inicializado")
 	}
 
 	publicMetadata := map[string]string{"role": role}
 	publicMetadataJSON, _ := json.Marshal(publicMetadata)
 
-	newUser, err := s.Client.Users().Create(clerk.CreateUserParams{
+	newUser, err := s.Clerk.CreateUser(clerk.CreateUserParams{
 		EmailAddresses:          []string{input.Email},
 		FirstName:               &input.Name,
 		LastName:                &input.Lastname,
@@ -66,7 +69,7 @@ func (s *AuthService) CreateUser(input domain.UserInput, organizationID string, 
 	}
 
 	if organizationID != "" {
-		_, err := s.Client.Organizations().CreateMembership(organizationID, clerk.CreateOrganizationMembershipParams{
+		_, err := s.Clerk.CreateOrganizationMembership(organizationID, clerk.CreateOrganizationMembershipParams{
 			UserID: newUser.ID,
 			Role:   role,
 		})

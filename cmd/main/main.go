@@ -73,7 +73,7 @@ func main() {
 
 		urlPath := fmt.Sprintf("sessions/%s/tokens/%s", sessionId, template)
 
-		req, err := auth.Client.NewRequest("POST", urlPath, nil)
+		req, err := auth.Clerk.NewRequest("POST", urlPath, nil)
 		if err != nil {
 			c.Logger().Errorf("Error creating Clerk request: %v", err)
 			return c.String(http.StatusInternalServerError, "Error preparing token request")
@@ -81,7 +81,7 @@ func main() {
 
 		var tokenResponse = clerk.SessionToken{}
 
-		_, err = auth.Client.Do(req, &tokenResponse)
+		_, err = auth.Clerk.Do(req, &tokenResponse)
 		if err != nil {
 			c.Logger().Errorf("Error executing Clerk request or processing response: %v", err)
 			return c.String(http.StatusInternalServerError, "Error creating token: "+err.Error())
