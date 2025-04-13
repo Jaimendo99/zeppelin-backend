@@ -11,7 +11,6 @@ import (
 
 type AuthService struct {
 	Client clerk.Client
-	repo   domain.UserRepo
 }
 
 func NewAuthService() (*AuthService, error) {

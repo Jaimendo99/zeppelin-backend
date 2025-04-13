@@ -1,6 +1,9 @@
 package domain
 
-import "database/sql"
+import (
+	"database/sql"
+	"github.com/stretchr/testify/mock"
+)
 
 type Representative struct {
 	RepresentativeId int    `json:"representative_id" gorm:"primaryKey"`
@@ -29,7 +32,6 @@ type RepresentativeRepo interface {
 	GetRepresentative(representative_id int) (*RepresentativeInput, error)
 	GetAllRepresentatives() ([]Representative, error)
 	UpdateRepresentative(representative_id int, representative RepresentativeInput) error
-	//DeleteRepresentative(representative_id int) error
 }
 
 type RepresentativeServiceI interface {
@@ -45,4 +47,36 @@ func (RepresentativeDb) TableName() string {
 }
 func (RepresentativeInput) TableName() string {
 	return "representatives"
+}
+
+type MockRepresentativeRepo struct {
+	mock.Mock
+}
+
+func (m *MockRepresentativeRepo) CreateRepresentative(representative RepresentativeDb) error {
+	args := m.Called(representative)
+	return args.Error(0)
+}
+
+func (m *MockRepresentativeRepo) GetRepresentative(representative_id int) (*RepresentativeInput, error) {
+	args := m.Called(representative_id)
+	res := args.Get(0)
+	if res == nil {
+		return nil, args.Error(1)
+	}
+	return res.(*RepresentativeInput), args.Error(1)
+}
+
+func (m *MockRepresentativeRepo) GetAllRepresentatives() ([]Representative, error) {
+	args := m.Called()
+	res := args.Get(0)
+	if res == nil {
+		return nil, args.Error(1)
+	}
+	return res.([]Representative), args.Error(1)
+}
+
+func (m *MockRepresentativeRepo) UpdateRepresentative(representative_id int, representative RepresentativeInput) error {
+	args := m.Called(representative_id, representative)
+	return args.Error(0)
 }

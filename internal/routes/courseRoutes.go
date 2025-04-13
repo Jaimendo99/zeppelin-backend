@@ -10,15 +10,9 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-func DefineCourseRoutes(e *echo.Echo) {
+func DefineCourseRoutes(e *echo.Echo, authService *services.AuthService, roleMiddlewareProvider func(roles ...string) echo.MiddlewareFunc) {
 	repo := data.NewCourseRepo(config.DB)
 	courseController := controller.CourseController{Repo: repo}
-
-	authService, err := services.NewAuthService()
-	if err != nil {
-		e.Logger.Fatal("Error inicializando AuthService: ", err)
-		return
-	}
 
 	e.POST("/course", courseController.CreateCourse(), middleware.RoleMiddleware(authService, "org:teacher"))
 	e.GET("/courses/teacher", courseController.GetCoursesByTeacher(), middleware.RoleMiddleware(authService, "org:teacher"))

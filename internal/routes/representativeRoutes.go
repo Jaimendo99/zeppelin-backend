@@ -5,46 +5,43 @@ import (
 	"zeppelin/internal/controller"
 	"zeppelin/internal/data"
 	"zeppelin/internal/domain"
-	"zeppelin/internal/middleware"
 	"zeppelin/internal/services"
 
 	"github.com/labstack/echo/v4"
 )
 
-func DefineRepresentativeRoutes(e *echo.Echo, m ...echo.MiddlewareFunc) {
+func DefineRepresentativeRoutes(e *echo.Echo, roleMiddlewareProvider func(roles ...string) echo.MiddlewareFunc) {
 	repo := data.NewRepresentativeRepo(config.DB)
 
 	recontroller := controller.RepresentativeController{Repo: repo}
 
-	authService, err := services.NewAuthService()
-	if err != nil {
-		e.Logger.Fatal("Error inicializando AuthService: ", err)
-		return
-	}
-
-	e.GET("/representative/:representative_id", recontroller.GetRepresentative(), middleware.RoleMiddleware(authService, "org:admin", "org:teacher"))
-	e.POST("/representative", recontroller.CreateRepresentative(), middleware.RoleMiddleware(authService, "org:admin", "org:teacher"))
-	e.GET("/representatives", recontroller.GetAllRepresentatives(), middleware.RoleMiddleware(authService, "org:admin", "org:teacher"))
-	e.PUT("/representative/:representative_id", recontroller.UpdateRepresentative(), middleware.RoleMiddleware(authService, "org:admin", "org:teacher"))
+	e.GET("/representative/:representative_id", recontroller.GetRepresentative(), roleMiddlewareProvider("org:admin", "org:teacher"))
+	e.POST("/representative", recontroller.CreateRepresentative(), roleMiddlewareProvider("org:admin", "org:teacher"))
+	e.GET("/representatives", recontroller.GetAllRepresentatives())
+	e.PUT("/representative/:representative_id", recontroller.UpdateRepresentative(), roleMiddlewareProvider("org:admin", "org:teacher"))
 }
 
-func DefineNotificationRoutes(e *echo.Echo, m ...echo.MiddlewareFunc) {
+func DefineNotificationRoutes(e *echo.Echo, roleMiddlewareProvider func(roles ...string) echo.MiddlewareFunc, m ...echo.MiddlewareFunc) {
 
 	smtServer := config.GetSmtpConfig()
 	fcmClient := config.GetFCMClient()
 	db := config.DB
 
-	services := []domain.NotificationService{
+	ns := []domain.NotificationService{
 		services.NewEmailNotification(*smtServer),
 		services.NewPushNotification(*fcmClient),
 	}
 
 	queueServer := data.NewRabbitMQImpl(config.ProducerChannel)
 
-	repo := data.NewNotificationRepo(db, queueServer, services)
-	controller := controller.NewNotificationController(repo)
+	repo := data.NewNotificationRepo(db, queueServer, ns)
+	nc := controller.NewNotificationController(repo)
 
-	e.POST("/notification", controller.SendNotification(), m...)
+	middlewares := []echo.MiddlewareFunc{
+		roleMiddlewareProvider("org:teacher", "org:admin"),
+	}
+	middlewares = append(middlewares, m...)
+	e.POST("/notification", nc.SendNotification(), middlewares...)
 
 	go func() {
 		if err := repo.ConsumeFromQueue("notification"); err != nil {

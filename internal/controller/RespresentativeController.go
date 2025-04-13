@@ -29,6 +29,9 @@ func (c *RepresentativeController) GetRepresentative() echo.HandlerFunc {
 	return func(e echo.Context) error {
 		representativeId := e.Param("representative_id")
 		id, err := services.ParamToId(representativeId)
+		if err != nil {
+			return ReturnReadResponse(e, err, nil)
+		}
 		var representative *domain.RepresentativeInput
 		representative, err = c.Repo.GetRepresentative(id)
 		return ReturnReadResponse(e, err, representative)
@@ -46,6 +49,9 @@ func (c *RepresentativeController) UpdateRepresentative() echo.HandlerFunc {
 	return func(e echo.Context) error {
 		representativeId := e.Param("representative_id")
 		id, err := services.ParamToId(representativeId)
+		if err != nil {
+			return ReturnWriteResponse(e, err, nil)
+		}
 		representative := domain.RepresentativeInput{}
 		if err := ValidateAndBind(e, &representative); err != nil {
 			return err

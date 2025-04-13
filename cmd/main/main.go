@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"zeppelin/internal/config"
 	"zeppelin/internal/controller"
 	"zeppelin/internal/routes"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
+	elog "github.com/labstack/gommon/log"
 )
 
 func init() {
@@ -45,13 +45,13 @@ func init() {
 
 func main() {
 	e := echo.New()
+	e.Logger.SetHeader("[echo-zeppelin] | ${time_rfc3339} | ${level}${message} | ")
+	e.Logger.SetLevel(elog.DEBUG) // Set the desired log level
 	e.Use(inMW.RequestLogger())
-	e.Logger.SetOutput(os.Stdout)
-	e.Logger.SetPrefix("[echo] ")
+	e.Logger.SetOutput(e.Logger.Output())
 
-	// ✅ Agregar Middleware CORS
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins: []string{"http://localhost:5173"}, // Permitir peticiones desde el frontend
+		AllowOrigins: []string{"http://localhost:5173"},
 		AllowMethods: []string{echo.GET, echo.POST, echo.PUT, echo.DELETE},
 		AllowHeaders: []string{"Authorization", "Content-Type"},
 	}))
@@ -95,13 +95,17 @@ func main() {
 		return c.JSON(http.StatusOK, tokenResponse)
 	}, inMW.RoleMiddleware(auth, "org:admin", "org:teacher", "org:student"))
 
-	routes.DefineRepresentativeRoutes(e)
-	routes.DefineTeacherRoutes(e)
-	routes.DefineStudentRoutes(e)
-	routes.DefineCourseRoutes(e)
-	routes.DefineAssignmentRoutes(e)
-	routes.DefineNotificationRoutes(e)
-	routes.DefineWebSocketRoutes(e)
+	roleMiddlewareProvider := func(roles ...string) echo.MiddlewareFunc {
+		return inMW.RoleMiddleware(auth, roles...)
+	}
+
+	routes.DefineRepresentativeRoutes(e, roleMiddlewareProvider)
+	routes.DefineTeacherRoutes(e, auth, roleMiddlewareProvider)
+	routes.DefineStudentRoutes(e, auth, roleMiddlewareProvider)
+	routes.DefineCourseRoutes(e, auth, roleMiddlewareProvider)
+	routes.DefineAssignmentRoutes(e, roleMiddlewareProvider)
+	routes.DefineNotificationRoutes(e, roleMiddlewareProvider)
+	routes.DefineWebSocketRoutes1(e, auth)
 	defer func(MQConn config.AmqpConnection) {
 		err := MQConn.Close()
 		if err != nil {
@@ -109,8 +113,6 @@ func main() {
 		}
 	}(config.MQConn)
 
-	if err := e.Start("0.0.0.0:8081"); err != nil {
-		e.Logger.Fatal("error starting server: ", err)
-	}
+	e.Logger.Error(e.Start(":8080"))
 
 }

@@ -2,8 +2,8 @@ package middleware
 
 import (
 	"errors"
-	"net/http"
 	"strings"
+	"zeppelin/internal/controller"
 	"zeppelin/internal/services"
 
 	"github.com/clerkinc/clerk-sdk-go/clerk"
@@ -42,7 +42,7 @@ func RoleMiddleware(authService *services.AuthService, requiredRoles ...string) 
 		return func(c echo.Context) error {
 			authHeader := c.Request().Header.Get("Authorization")
 			if authHeader == "" {
-				return echo.NewHTTPError(http.StatusUnauthorized, "Token de autorización requerido")
+				return controller.ReturnWriteResponse(c, errors.New("token requerido"), nil)
 			}
 
 			headerToken := strings.TrimSpace(c.Request().Header.Get("Authorization"))
@@ -50,17 +50,17 @@ func RoleMiddleware(authService *services.AuthService, requiredRoles ...string) 
 
 			claims, err := authService.DecodeToken(token)
 			if err != nil {
-				return echo.NewHTTPError(http.StatusUnauthorized, "Token inválido o sesión no encontrada")
+				return controller.ReturnWriteResponse(c, errors.New("token inválido o sesión no encontrada"), nil)
 			}
 
 			sessionClaims, err := authService.Client.VerifyToken(token)
 			if err != nil || sessionClaims == nil {
-				return echo.NewHTTPError(http.StatusUnauthorized, "Token inválido o sesión no encontrada")
+				return controller.ReturnWriteResponse(c, errors.New("token inválido o sesión no encontrada"), nil)
 			}
 
 			role, err := extractRoleFromClaims(claims)
 			if err != nil {
-				return echo.NewHTTPError(http.StatusForbidden, "No se pudo extraer el rol del usuario")
+				return controller.ReturnWriteResponse(c, errors.New("no se pudo extraer el rol del usuario"), nil)
 			}
 
 			c.Set("user_role", role)
@@ -70,7 +70,7 @@ func RoleMiddleware(authService *services.AuthService, requiredRoles ...string) 
 				if contains(requiredRoles, role) {
 					return next(c)
 				}
-				return echo.NewHTTPError(http.StatusForbidden, "Acceso denegado: rol no autorizado")
+				return controller.ReturnWriteResponse(c, errors.New("acceso denegado: rol no autorizado"), nil)
 			}
 			return next(c)
 		}

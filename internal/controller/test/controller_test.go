@@ -3,7 +3,6 @@ package controller_test
 import (
 	"errors"
 	"fmt"
-	"github.com/clerkinc/clerk-sdk-go/clerk"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -56,183 +55,6 @@ func testHTTPErrorHandler(err error, c echo.Context) {
 	}
 }
 
-type MockRepresentativeRepo struct {
-	CreateRep func(representative domain.RepresentativeDb) error
-	GetRep    func(id int) (*domain.RepresentativeInput, error)
-	GetAllRep func() ([]domain.Representative, error)
-	UpdateRep func(id int, representative domain.RepresentativeInput) error
-}
-
-func (m MockRepresentativeRepo) CreateRepresentative(representative domain.RepresentativeDb) error {
-	return m.CreateRep(representative)
-}
-
-func (m MockRepresentativeRepo) GetRepresentative(id int) (*domain.RepresentativeInput, error) {
-	return m.GetRep(id)
-}
-
-func (m MockRepresentativeRepo) GetAllRepresentatives() ([]domain.Representative, error) {
-	return m.GetAllRep()
-}
-
-func (m MockRepresentativeRepo) UpdateRepresentative(id int, representative domain.RepresentativeInput) error {
-	return m.UpdateRep(id, representative)
-}
-
-func TestCreateRepresentative_Success(t *testing.T) {
-	var repeJson = `{"name":"Anthony","lastname":"Cochea","email":"anthony@gmail.com","phone_number":"+593990269309"}`
-
-	e := echo.New()
-	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(repeJson))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	e.Validator = &controller.CustomValidator{Validator: validator.New()}
-
-	mockRepo := MockRepresentativeRepo{
-		CreateRep: func(representative domain.RepresentativeDb) error {
-			return nil
-		},
-	}
-	recontroller := controller.RepresentativeController{Repo: mockRepo}
-	handler := recontroller.CreateRepresentative()
-
-	if assert.NoError(t, handler(c)) {
-		assert.Equal(t, http.StatusOK, rec.Code)
-		expectedMessage := `{"Body":{"message":"Representative created"}}`
-		assert.JSONEq(t, expectedMessage, rec.Body.String())
-	}
-}
-
-func TestCreateRepresentative_BadRequest(t *testing.T) {
-	var repeJson = `{"name":"Anthony","lastname":"Cochea","email":"","phone_number":""`
-	e := echo.New()
-	e.HTTPErrorHandler = testHTTPErrorHandler
-
-	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(repeJson))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-
-	e.Validator = &controller.CustomValidator{Validator: validator.New()}
-
-	mockRepo := MockRepresentativeRepo{
-		CreateRep: func(representative domain.RepresentativeDb) error {
-			return nil
-		},
-	}
-	recontroller := controller.RepresentativeController{Repo: mockRepo}
-	handler := recontroller.CreateRepresentative()
-
-	err := handler(c)
-	if err != nil {
-		e.HTTPErrorHandler(err, c)
-	}
-
-	assert.Equal(t, http.StatusBadRequest, rec.Code)
-	expectedMessage := `{"message":"Invalid request body"}`
-	assert.JSONEq(t, expectedMessage, rec.Body.String())
-}
-
-func TestGetRepresentative_Success(t *testing.T) {
-	e := echo.New()
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-
-	mockRepo := MockRepresentativeRepo{
-		GetRep: func(id int) (*domain.RepresentativeInput, error) {
-			return &domain.RepresentativeInput{
-				Name:        "Anthony",
-				Lastname:    "Cochea",
-				Email:       "anthony@gmail.com",
-				PhoneNumber: "+593990269309",
-			}, nil
-		},
-	}
-	recontroller := controller.RepresentativeController{Repo: mockRepo}
-	handler := recontroller.GetRepresentative()
-
-	c.SetPath("/representative/:representative_id")
-	c.SetParamNames("representative_id")
-	c.SetParamValues("1")
-
-	if assert.NoError(t, handler(c)) {
-		assert.Equal(t, http.StatusOK, rec.Code)
-		expectedMessage := `{"name":"Anthony","lastname":"Cochea","email":"anthony@gmail.com","phone_number":"+593990269309"}`
-		assert.JSONEq(t, expectedMessage, rec.Body.String())
-	}
-
-}
-
-func TestGetRepresentative_NotFound(t *testing.T) {
-	e := echo.New()
-	e.HTTPErrorHandler = testHTTPErrorHandler
-
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-
-	mockRepo := MockRepresentativeRepo{
-		GetRep: func(id int) (*domain.RepresentativeInput, error) {
-			return nil, gorm.ErrRecordNotFound
-		},
-	}
-	recontroller := controller.RepresentativeController{Repo: mockRepo}
-	handler := recontroller.GetRepresentative()
-
-	c.SetPath("/representative/:representative_id")
-	c.SetParamNames("representative_id")
-	c.SetParamValues("1")
-
-	err := handler(c)
-	if err != nil {
-		e.HTTPErrorHandler(err, c)
-	}
-
-	assert.Equal(t, http.StatusNotFound, rec.Code)
-	expectedMessage := `{"message":"{Record not found}"}`
-	assert.JSONEq(t, expectedMessage, rec.Body.String())
-}
-
-func TestGetAllRepresentatives_Success(t *testing.T) {
-	e := echo.New()
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-
-	mockRepo := MockRepresentativeRepo{
-		GetAllRep: func() ([]domain.Representative, error) {
-			return []domain.Representative{
-				{
-					RepresentativeId: 1,
-					Name:             "Anthony",
-					Lastname:         "Cochea",
-					Email:            "",
-					PhoneNumber:      "",
-				},
-				{
-					RepresentativeId: 2,
-					Name:             "Mateo",
-					Lastname:         "Mejia",
-					Email:            "mateo@gmail.com",
-					PhoneNumber:      "+593990269309",
-				},
-			}, nil
-		},
-	}
-
-	recontroller := controller.RepresentativeController{Repo: mockRepo}
-	handler := recontroller.GetAllRepresentatives()
-
-	if assert.NoError(t, handler(c)) {
-		assert.Equal(t, http.StatusOK, rec.Code)
-		expectedMessage := `[{"representative_id":1,"name":"Anthony","lastname":"Cochea","email":"","phone_number":""},{"representative_id":2,"name":"Mateo","lastname":"Mejia","email":"mateo@gmail.com","phone_number":"+593990269309"}]`
-		assert.JSONEq(t, expectedMessage, rec.Body.String())
-	}
-}
-
-// --- Mock Repo (Unchanged) ---
 type MockCourseRepo struct {
 	CreateC       func(course domain.CourseDB) error
 	GetCoursesByT func(teacherID string) ([]domain.CourseDB, error)
@@ -404,8 +226,8 @@ func TestGetCoursesByTeacher_ForbiddenStudent(t *testing.T) {
 	if assert.Error(t, err) {
 		e.HTTPErrorHandler(err, c) // Let the handler format the 500 error
 		// *** CORRECTED: Expect 500 status and specific message from ReturnReadResponse -> testHTTPErrorHandler ***
-		assert.Equal(t, http.StatusInternalServerError, rec.Code)
-		expectedMessage := `{"message":"{Internal server error}"}`
+		assert.Equal(t, http.StatusForbidden, rec.Code)
+		expectedMessage := `{"message":"{Solo los profesores pueden ver sus cursos}"}`
 		assert.JSONEq(t, expectedMessage, rec.Body.String())
 	}
 }
@@ -576,8 +398,8 @@ func TestGetCoursesByStudent_ForbiddenTeacher(t *testing.T) {
 	if assert.Error(t, err) {
 		e.HTTPErrorHandler(err, c) // Let the handler format the 500 error
 		// *** CORRECTED: Expect 500 status and specific message from ReturnReadResponse -> testHTTPErrorHandler ***
-		assert.Equal(t, http.StatusInternalServerError, rec.Code)
-		expectedMessage := `{"message":"{Internal server error}"}`
+		assert.Equal(t, http.StatusForbidden, rec.Code)
+		expectedMessage := `{"message":"{Solo los estudiantes pueden ver sus cursos}"}`
 		assert.JSONEq(t, expectedMessage, rec.Body.String())
 	}
 }
@@ -1401,8 +1223,8 @@ func TestVerifyAssignment_RepoError(t *testing.T) {
 
 	// ReturnWriteResponse default case handles the error
 	if assert.NoError(t, err) {
-		assert.Equal(t, http.StatusInternalServerError, rec.Code)
-		expectedBody := fmt.Sprintf(`{"message":"%s"}`, repoErr.Error()) // e.g., {"message":"record not found"}
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+		expectedBody := `{"message":"Record not found"}` // e.g., {"message":"record not found"}
 		assert.JSONEq(t, expectedBody, rec.Body.String())
 	}
 }
@@ -1441,40 +1263,4 @@ func (m *MockUserRepo) GetAllStudents() ([]domain.UserDb, error) {
 		return m.GetAllS()
 	}
 	return nil, errors.New("GetAllS function not implemented in mock")
-}
-
-// --- Mock AuthService ---
-// We only need to mock the methods used by the controller (CreateUser)
-type MockAuthService struct {
-	CreateU func(input domain.UserInput, organizationID string, role string) (*domain.User, error)
-	// Add VerifyToken, DecodeToken mocks if other controllers use them
-}
-
-func (m *MockAuthService) CreateUser(input domain.UserInput, organizationID string, role string) (*domain.User, error) {
-	if m.CreateU != nil {
-		return m.CreateU(input, organizationID, role)
-	}
-	return nil, errors.New("CreateU function not implemented in mock")
-}
-
-// Implement other AuthService methods if needed by other tests, otherwise they can panic or return errors.
-func (m *MockAuthService) VerifyToken(token string) (*clerk.SessionClaims, error) {
-	panic("VerifyToken not implemented in mock")
-}
-func (m *MockAuthService) DecodeToken(token string) (*clerk.TokenClaims, error) {
-	panic("DecodeToken not implemented in mock")
-}
-
-func GetTypeID(role string) (int, error) {
-	switch role {
-	case "org:student":
-		return 3, nil
-	case "org:teacher":
-		return 2, nil
-	default:
-		// Return the actual error structure used by the controller
-		return 0, echo.NewHTTPError(http.StatusBadRequest, struct {
-			Message string `json:"message"`
-		}{Message: "Rol inválido"})
-	}
 }

@@ -1,27 +1,18 @@
 package routes
 
 import (
+	"github.com/labstack/echo/v4"
 	"zeppelin/internal/config"
 	"zeppelin/internal/controller"
 	"zeppelin/internal/data"
-	"zeppelin/internal/middleware"
-	"zeppelin/internal/services"
-
-	"github.com/labstack/echo/v4"
 )
 
-func DefineAssignmentRoutes(e *echo.Echo) {
+func DefineAssignmentRoutes(e *echo.Echo, roleMiddlewareProvider func(roles ...string) echo.MiddlewareFunc) {
 	repo := data.NewAssignmentRepo(config.DB)
 	assignmentController := controller.AssignmentController{Repo: repo}
 
-	authService, err := services.NewAuthService()
-	if err != nil {
-		e.Logger.Fatal("Error inicializando AuthService: ", err)
-		return
-	}
-
-	e.POST("/assignment", assignmentController.CreateAssignment(), middleware.RoleMiddleware(authService, "org:student"))
-	e.POST("/assignment/verify/:assignment_id", assignmentController.VerifyAssignment(), middleware.RoleMiddleware(authService, "org:teacher", "org:admin"))
-	e.GET("/assignments/student", assignmentController.GetAssignmentsByStudent(), middleware.RoleMiddleware(authService, "org:student"))
-	e.GET("/assignments/teacher/:course_id", assignmentController.GetStudentsByCourse(), middleware.RoleMiddleware(authService, "org:teacher"))
+	e.POST("/assignment", assignmentController.CreateAssignment(), roleMiddlewareProvider("org:student"))
+	e.POST("/assignment/verify/:assignment_id", assignmentController.VerifyAssignment(), roleMiddlewareProvider("org:teacher", "org:admin"))
+	e.GET("/assignments/student", assignmentController.GetAssignmentsByStudent(), roleMiddlewareProvider("org:student"))
+	e.GET("/assignments/teacher/:course_id", assignmentController.GetStudentsByCourse(), roleMiddlewareProvider("org:teacher"))
 }
