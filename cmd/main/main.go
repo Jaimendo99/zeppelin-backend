@@ -113,6 +113,6 @@ func main() {
 		}
 	}(config.MQConn)
 
-	e.Logger.Error(e.Start("3000"))
+	e.Logger.Error(e.Start("0.0.0.0:3000"))
 
 }
