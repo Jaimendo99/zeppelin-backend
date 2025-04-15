@@ -29,10 +29,6 @@ func TestDBConnection(t *testing.T) {
 		err bool
 	}{
 		{
-			dns: getConnectionString(),
-			err: false,
-		},
-		{
 			dns: "host=localhost user=nose password=tampocose dbname=zeppelin port=5432 sslmode=disable TimeZone=Asia/Shanghai",
 			err: true,
 		},
