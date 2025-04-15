@@ -20,10 +20,10 @@ func init() {
 	firebaseNewApp = func(ctx context.Context, config *firebase.Config, opts ...option.ClientOption) (FirebaseApp, error) {
 		app, err := firebase.NewApp(ctx, config, opts...)
 		if err != nil {
-			var nilApp FirebaseApp = nil // Return typed nil for the interface
+			var nilApp FirebaseApp = nil
 			return nilApp, err
 		}
-		return app, nil // Real *firebase.App satisfies the interface
+		return app, nil
 	}
 }
 

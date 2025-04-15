@@ -4,13 +4,12 @@ import (
 	"github.com/clerkinc/clerk-sdk-go/clerk"
 	"net/http"
 	"zeppelin/internal/domain"
-	"zeppelin/internal/services"
 
 	"github.com/labstack/echo/v4"
 )
 
 type UserController struct {
-	AuthService *services.AuthService
+	AuthService domain.AuthServiceI
 	UserRepo    domain.UserRepo
 }
 
@@ -18,7 +17,8 @@ func (c *UserController) RegisterUser(role string) echo.HandlerFunc {
 	return func(e echo.Context) error {
 		var req domain.UserInput
 		if err := ValidateAndBind(e, &req); err != nil {
-			return ReturnWriteResponse(e, err, nil)
+			e.Logger().Errorf("Error al validar y enlazar: %v", err)
+			return err
 		}
 
 		typeID, err := GetTypeID(role)

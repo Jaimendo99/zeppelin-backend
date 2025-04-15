@@ -2,18 +2,22 @@ package controller
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"sync"
-
-	"zeppelin/internal/middleware"
-	"zeppelin/internal/services"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
 )
 
+const (
+	writeWait = 10 * time.Second
+)
+
 var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
 		return true
 	},
@@ -24,16 +28,45 @@ type UserConn struct {
 	Platform string
 }
 
-var userConnections = make(map[string][]UserConn)
-var mutex sync.Mutex
+type ConnectionManager struct {
+	userConnections map[string][]UserConn
+	mutex           sync.Mutex
+}
 
-// Envía la actualización de estado a todas las conexiones activas de un usuario.
-func sendStatusUpdate(userID string) {
-	mutex.Lock()
-	defer mutex.Unlock()
+func NewConnectionManager() *ConnectionManager {
+	return &ConnectionManager{
+		userConnections: make(map[string][]UserConn),
+	}
+}
 
-	conns := userConnections[userID]
-	platforms := map[string]int{}
+func (cm *ConnectionManager) GetConnectionCount(userID string) int {
+	cm.mutex.Lock()
+	defer cm.mutex.Unlock()
+	return len(cm.userConnections[userID])
+}
+
+func (cm *ConnectionManager) GetUserPlatforms(userID string) map[string]int {
+	cm.mutex.Lock()
+	defer cm.mutex.Unlock()
+	platforms := make(map[string]int)
+	if conns, exists := cm.userConnections[userID]; exists {
+		for _, uc := range conns {
+			platforms[uc.Platform]++
+		}
+	}
+	return platforms
+}
+
+func (cm *ConnectionManager) sendStatusUpdate(logger echo.Logger, userID string) {
+	cm.mutex.Lock()
+	conns := cm.userConnections[userID]
+	cm.mutex.Unlock()
+
+	if len(conns) == 0 {
+		return
+	}
+
+	platforms := make(map[string]int)
 	for _, uc := range conns {
 		platforms[uc.Platform]++
 	}
@@ -47,96 +80,143 @@ func sendStatusUpdate(userID string) {
 
 	jsonData, err := json.Marshal(status)
 	if err != nil {
-		fmt.Printf("Error al convertir status a JSON: %v\n", err)
+		logger.Errorf("User %s: Failed to marshal status update: %v", userID, err)
 		return
 	}
 
-	// Enviar el status a cada conexión activa del usuario
-	for _, uc := range conns {
-		if err := uc.Conn.WriteMessage(websocket.TextMessage, jsonData); err != nil {
-			fmt.Printf("Error al enviar status a %s: %v\n", userID, err)
+	cm.mutex.Lock()
+	connsToSend := cm.userConnections[userID]
+	cm.mutex.Unlock()
+
+	for _, uc := range connsToSend {
+		if err := uc.Conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+			logger.Warnf("User %s (Platform %s): Failed to set write deadline: %v", userID, uc.Platform, err)
 		}
+
+		if err := uc.Conn.WriteMessage(websocket.TextMessage, jsonData); err != nil {
+			logger.Warnf("User %s (Platform %s): Failed to write status update: %v", userID, uc.Platform, err)
+		}
+
+		_ = uc.Conn.SetWriteDeadline(time.Time{})
 	}
 }
 
-func WebSocketHandler(authService *services.AuthService) echo.HandlerFunc {
-	fmt.Printf("🔌 WebSocket Handler inicializado\n")
-	return func(c echo.Context) error {
-		token := c.QueryParam("token")
-		platform := c.QueryParam("platform")
+func (cm *ConnectionManager) removeConnection(logger echo.Logger, userID string, connToRemove *websocket.Conn) bool {
+	cm.mutex.Lock()
+	defer cm.mutex.Unlock()
 
-		if token == "" {
-			return c.String(http.StatusUnauthorized, "Token requerido")
+	conns, exists := cm.userConnections[userID]
+	if !exists {
+		logger.Warnf("User %s: Attempted to remove connection, but user entry already gone.", userID)
+		return false
+	}
+
+	found := false
+	var updatedConns []UserConn
+	for _, uc := range conns {
+		if uc.Conn != connToRemove {
+			updatedConns = append(updatedConns, uc)
+		} else {
+			found = true
 		}
+	}
+
+	if !found {
+		logger.Warnf("User %s: Attempted to remove connection, but specific connection not found in list.", userID)
+		return len(conns) > 0
+	}
+
+	if len(updatedConns) == 0 {
+		delete(cm.userConnections, userID)
+		logger.Infof("User %s: Removed last connection.", userID)
+		return false
+	}
+
+	cm.userConnections[userID] = updatedConns
+	logger.Infof("User %s: Removed connection. Remaining: %d.", userID, len(updatedConns))
+	return true
+}
+
+func (cm *ConnectionManager) WebSocketHandler() echo.HandlerFunc {
+	return func(c echo.Context) error {
+		logger := c.Logger()
+
+		platform := c.QueryParam("platform")
 		if platform == "" {
 			platform = "unknown"
 		}
 
-		claims, err := middleware.ValidateTokenAndRole(token, authService, "org:student", "org:teacher", "org:admin")
-		if err != nil {
-			fmt.Printf("⛔ Token inválido: %v\n", err)
-			return c.String(http.StatusUnauthorized, "Token inválido")
-		}
-
-		userID := claims.Subject
-		if userID == "" {
-			return c.String(http.StatusUnauthorized, "ID de usuario inválido")
+		userIDRaw := c.Get("user_id")
+		userID, ok := userIDRaw.(string)
+		if !ok || userID == "" {
+			logger.Errorf("Invalid user ID type or empty. Value: %v", userIDRaw)
+			return c.String(http.StatusUnauthorized, "Invalid user ID")
 		}
 
 		conn, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
 		if err != nil {
-			fmt.Printf("❌ Error al hacer upgrade: %v\n", err)
-			return err
+			logger.Errorf("User %s: Failed WebSocket upgrade: %v", userID, err)
+			return nil
 		}
-
-		fmt.Printf("🔌 WebSocket conectado: %s desde %s\n", userID, platform)
+		logger.Infof("User %s: WebSocket connection established from %s (Platform: %s)", userID, conn.RemoteAddr(), platform)
 
 		userConn := UserConn{Conn: conn, Platform: platform}
 
-		mutex.Lock()
-		userConnections[userID] = append(userConnections[userID], userConn)
-		mutex.Unlock()
+		cm.mutex.Lock()
+		cm.userConnections[userID] = append(cm.userConnections[userID], userConn)
+		cm.mutex.Unlock()
 
-		// Envía actualización de estado a todas las conexiones de este usuario
-		sendStatusUpdate(userID)
+		cm.sendStatusUpdate(logger, userID)
 
-		go func() {
-			defer func() {
-				mutex.Lock()
-				conns := userConnections[userID]
-				for i, uc := range conns {
-					if uc.Conn == conn {
-						userConnections[userID] = append(conns[:i], conns[i+1:]...)
-						break
-					}
-				}
-				mutex.Unlock()
-				// Envía actualización tras remover la conexión
-				sendStatusUpdate(userID)
-				conn.Close()
-				fmt.Printf("🔌 Conexión cerrada: %s (%s)\n", userID, platform)
-			}()
-
-			for {
-				msgType, msg, err := conn.ReadMessage()
-				if err != nil {
-					fmt.Printf("❌ Error al leer mensaje de %s: %v\n", userID, err)
-					break
-				}
-
-				fmt.Printf("📩 Mensaje recibido de %s: %s\n", userID, string(msg))
-
-				// Si se reciben mensajes de otro tipo, se pueden reenviar a las demás conexiones
-				mutex.Lock()
-				for _, uc := range userConnections[userID] {
-					if uc.Conn != conn {
-						uc.Conn.WriteMessage(msgType, msg)
-					}
-				}
-				mutex.Unlock()
-			}
-		}()
+		go cm.readPump(logger, userID, platform, conn)
 
 		return nil
+	}
+}
+
+func (cm *ConnectionManager) readPump(logger echo.Logger, userID, platform string, conn *websocket.Conn) {
+	defer func() {
+		logger.Infof("User %s (Platform %s): Cleaning up connection.", userID, platform)
+		othersRemain := cm.removeConnection(logger, userID, conn)
+		if othersRemain {
+			cm.sendStatusUpdate(logger, userID)
+		}
+		_ = conn.Close()
+		logger.Infof("User %s (Platform %s): Connection cleanup finished.", userID, platform)
+	}()
+
+	for {
+		msgType, message, err := conn.ReadMessage()
+		if err != nil {
+			var e *websocket.CloseError
+			if errors.As(err, &e) && (e.Code == websocket.CloseNormalClosure || e.Code == websocket.CloseGoingAway || e.Code == websocket.CloseAbnormalClosure) {
+				logger.Infof("User %s (Platform %s): WebSocket closed normally (code %d).", userID, platform, e.Code)
+			} else {
+				logger.Warnf("User %s (Platform %s): Error reading message: %v", userID, platform, err)
+			}
+			break
+		}
+
+		logger.Infof("User %s (Platform %s): Received message (type %d): %s", userID, platform, msgType, string(message))
+
+		cm.mutex.Lock()
+		conns, exists := cm.userConnections[userID]
+		cm.mutex.Unlock()
+
+		if !exists {
+			continue
+		}
+
+		for _, uc := range conns {
+			if uc.Conn != conn {
+				if err := uc.Conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+					logger.Warnf("User %s (Platform %s): Broadcast - Failed to set write deadline for target %s: %v", userID, platform, uc.Platform, err)
+				}
+				if err := uc.Conn.WriteMessage(msgType, message); err != nil {
+					logger.Warnf("User %s (Platform %s): Failed to broadcast message to target %s: %v", userID, platform, uc.Platform, err)
+				}
+				_ = uc.Conn.SetWriteDeadline(time.Time{})
+			}
+		}
 	}
 }
