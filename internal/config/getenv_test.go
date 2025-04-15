@@ -65,7 +65,7 @@ func TestLoadEnv_Success(t *testing.T) {
 
 // Test case for when the .env file does not exist
 func TestLoadEnv_FileNotFound(t *testing.T) {
-	// 1. Create a temporary directory (it will be empty)
+	// 1. Create a temporary directory (it will be empty, simulating no .env file)
 	tempDir := t.TempDir()
 
 	// 2. Store the original working directory
@@ -83,23 +83,21 @@ func TestLoadEnv_FileNotFound(t *testing.T) {
 	defer func() {
 		err := os.Chdir(originalWd)
 		if err != nil {
+			// Using Errorf here as Fatalf in defer can mask the original test failure
 			t.Errorf("Failed to change back to original working directory: %v", err)
 		}
 	}()
 
-	// 5. Call the function under test (it should fail as .env doesn't exist here)
+	// 5. Call the function under test
+	//    With the updated logic, this should now return nil when .env is missing.
 	loadErr := config.LoadEnv()
 
-	// 6. Assert that an error *did* occur
-	assert.Error(t, loadErr, "LoadEnv should return an error when .env does not exist")
+	// 6. Assert that NO error occurred because missing .env is now acceptable
+	assert.NoError(t, loadErr, "LoadEnv should NOT return an error when .env does not exist")
 
-	// 7. Optional: Check if the error message is what we expect
-	//    Note: godotenv might return a specific error type or message.
-	//          os.IsNotExist(err) might work depending on godotenv's implementation.
-	//          Checking the wrapped message is often safer.
-	assert.Contains(t, loadErr.Error(), "error loading .env file", "Error message should indicate loading failure")
+	// 7. The previous assertion checking for a specific error message is removed,
+	//    as no error is expected in this scenario anymore.
 }
-
 func TestGetConnectionString(t *testing.T) {
 	original := os.Getenv("CONNECTION_STRING")
 	defer os.Setenv("CONNECTION_STRING", original) // Restore variable after test
