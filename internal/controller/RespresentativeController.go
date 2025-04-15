@@ -32,7 +32,7 @@ func (c *RepresentativeController) GetRepresentative() echo.HandlerFunc {
 		if err != nil {
 			return ReturnReadResponse(e, err, nil)
 		}
-		var representative *domain.RepresentativeInput
+		var representative *domain.Representative
 		representative, err = c.Repo.GetRepresentative(id)
 		return ReturnReadResponse(e, err, representative)
 	}

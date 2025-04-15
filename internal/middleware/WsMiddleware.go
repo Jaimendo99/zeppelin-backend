@@ -1,37 +1,36 @@
 package middleware
 
 import (
-	"errors"
 	"github.com/labstack/echo/v4"
 	"zeppelin/internal/controller"
-	"zeppelin/internal/services"
+	"zeppelin/internal/domain"
 )
 
-func WsAuthMiddleware(as services.AuthService, requiredRoles ...string) echo.MiddlewareFunc {
+func WsAuthMiddleware(as domain.AuthServiceI, requiredRoles ...string) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			token := c.QueryParam("token")
 			if token == "" {
-				return controller.ReturnWriteResponse(c, errors.New("token requerido"), nil)
+				return controller.ReturnWriteResponse(c, domain.ErrAuthTokenMissing, nil)
 			}
 
 			claims, err := as.DecodeToken(token)
 			if err != nil {
-				return controller.ReturnWriteResponse(c, errors.New("token inválido o sesión no encontrada"), nil)
+				return controller.ReturnWriteResponse(c, domain.ErrAuthTokenInvalid, nil)
 			}
 
 			sessionClaims, err := as.VerifyToken(token)
 			if err != nil || sessionClaims == nil {
-				return controller.ReturnWriteResponse(c, errors.New("token inválido o sesión no encontrada"), nil)
+				return controller.ReturnWriteResponse(c, domain.ErrAuthTokenInvalid, nil)
 			}
 
 			role, err := extractRoleFromClaims(claims)
 			if err != nil {
-				return controller.ReturnWriteResponse(c, errors.New("no se pudo extraer el rol del usuario"), nil)
+				return controller.ReturnWriteResponse(c, domain.ErrRoleExtractionFailed, nil)
 			}
 
 			if len(requiredRoles) > 0 && !contains(requiredRoles, role) {
-				return controller.ReturnWriteResponse(c, errors.New("acceso denegado: rol no autorizado"), nil)
+				return controller.ReturnWriteResponse(c, domain.ErrAuthorizationFailed, nil)
 			}
 
 			c.Set("user_id", claims.Subject)

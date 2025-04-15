@@ -2,16 +2,16 @@ package middleware
 
 import (
 	"errors"
+	"github.com/clerkinc/clerk-sdk-go/clerk"
 	"strings"
 	"zeppelin/internal/controller"
-	"zeppelin/internal/services"
-
-	"github.com/clerkinc/clerk-sdk-go/clerk"
+	"zeppelin/internal/domain"
 
 	"github.com/labstack/echo/v4"
 )
 
-func ValidateTokenAndRole(token string, authService *services.AuthService, requiredRoles ...string) (*clerk.TokenClaims, error) {
+func ValidateTokenAndRole(token string, authService domain.AuthServiceI, requiredRoles ...string) (*clerk.TokenClaims, error) {
+
 	if token == "" {
 		return nil, errors.New("token requerido")
 	}
@@ -37,12 +37,13 @@ func ValidateTokenAndRole(token string, authService *services.AuthService, requi
 	return claims, nil
 }
 
-func RoleMiddleware(authService *services.AuthService, requiredRoles ...string) echo.MiddlewareFunc {
+func RoleMiddleware(authService domain.AuthServiceI, requiredRoles ...string) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			authHeader := c.Request().Header.Get("Authorization")
 			if authHeader == "" {
-				return controller.ReturnWriteResponse(c, errors.New("token requerido"), nil)
+				_ = controller.ReturnWriteResponse(c, domain.ErrAuthTokenMissing, nil)
+				return nil
 			}
 
 			headerToken := strings.TrimSpace(c.Request().Header.Get("Authorization"))
@@ -50,17 +51,17 @@ func RoleMiddleware(authService *services.AuthService, requiredRoles ...string) 
 
 			claims, err := authService.DecodeToken(token)
 			if err != nil {
-				return controller.ReturnWriteResponse(c, errors.New("token inválido o sesión no encontrada"), nil)
+				return controller.ReturnWriteResponse(c, domain.ErrAuthTokenInvalid, nil)
 			}
 
 			sessionClaims, err := authService.VerifyToken(token)
 			if err != nil || sessionClaims == nil {
-				return controller.ReturnWriteResponse(c, errors.New("token inválido o sesión no encontrada"), nil)
+				return controller.ReturnWriteResponse(c, domain.ErrAuthTokenInvalid, nil)
 			}
 
 			role, err := extractRoleFromClaims(claims)
 			if err != nil {
-				return controller.ReturnWriteResponse(c, errors.New("no se pudo extraer el rol del usuario"), nil)
+				return controller.ReturnWriteResponse(c, domain.ErrRoleExtractionFailed, nil)
 			}
 
 			c.Set("user_role", role)
@@ -70,7 +71,7 @@ func RoleMiddleware(authService *services.AuthService, requiredRoles ...string) 
 				if contains(requiredRoles, role) {
 					return next(c)
 				}
-				return controller.ReturnWriteResponse(c, errors.New("acceso denegado: rol no autorizado"), nil)
+				return controller.ReturnWriteResponse(c, domain.ErrAuthorizationFailed, nil)
 			}
 			return next(c)
 		}
@@ -95,5 +96,5 @@ func extractRoleFromClaims(claims *clerk.TokenClaims) (string, error) {
 		return role, nil
 	}
 
-	return "", errors.New("el rol no está definido en los claims")
+	return "", domain.ErrRoleExtractionFailed
 }

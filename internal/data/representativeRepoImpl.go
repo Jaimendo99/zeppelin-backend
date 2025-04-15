@@ -23,11 +23,11 @@ func (r *represetativeRepo) CreateRepresentative(representative domain.Represent
 	return nil
 }
 
-func (r *represetativeRepo) GetRepresentative(representativeId int) (*domain.RepresentativeInput, error) {
-	if representativeId < 0 {
+func (r *represetativeRepo) GetRepresentative(representativeId int) (*domain.Representative, error) {
+	if representativeId <= 0 {
 		return nil, gorm.ErrInvalidData
 	}
-	var representative domain.RepresentativeInput
+	var representative domain.Representative
 	result := r.db.Where("representative_id = ?", representativeId).First(&representative)
 	if result.Error != nil {
 		return nil, result.Error
@@ -45,22 +45,26 @@ func (r *represetativeRepo) GetAllRepresentatives() ([]domain.Representative, er
 }
 
 func (r *represetativeRepo) UpdateRepresentative(representativeId int, representative domain.RepresentativeInput) error {
-	if representativeId < 0 {
+	if representativeId <= 0 {
 		return gorm.ErrInvalidData
 	}
-	var representativeDb domain.RepresentativeDb
-	result := r.db.Where("representative_id = ?", representativeId).First(&representativeDb)
+
+	updates := map[string]interface{}{
+		"name":         representative.Name,
+		"lastname":     representative.Lastname,
+		"email":        sql.NullString{String: representative.Email, Valid: representative.Email != ""},
+		"phone_number": sql.NullString{String: representative.PhoneNumber, Valid: representative.PhoneNumber != ""},
+	}
+
+	result := r.db.Model(&domain.RepresentativeDb{}).
+		Where("representative_id = ?", representativeId).
+		Updates(updates)
+
 	if result.Error != nil {
 		return result.Error
 	}
-	representativeDb.Name = representative.Name
-	representativeDb.Lastname = representative.Lastname
-	representativeDb.Email = sql.NullString{String: representative.Email}
-	representativeDb.PhoneNumber = sql.NullString{String: representative.PhoneNumber}
-
-	result = r.db.Save(&representativeDb)
-	if result.Error != nil {
-		return result.Error
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
 	}
 	return nil
 }

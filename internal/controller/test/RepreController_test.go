@@ -113,7 +113,7 @@ func TestRepresentativeController_GetRepresentative(t *testing.T) {
 		c.SetParamValues("123")
 
 		expectedID := 123
-		expectedRep := &domain.RepresentativeInput{ /* Populate with expected data */ }
+		expectedRep := &domain.Representative{ /* Populate with expected data */ }
 		mockRepo.On("GetRepresentative", expectedID).Return(expectedRep, nil).Once()
 
 		handler := representativeController.GetRepresentative()

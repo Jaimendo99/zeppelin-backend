@@ -1,5 +1,5 @@
 // auth_service_test.go
-package services_test
+package test_test
 
 import (
 	"errors"

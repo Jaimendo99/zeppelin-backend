@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"zeppelin/internal/domain"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
@@ -72,47 +73,51 @@ func ReturnWriteResponse(e echo.Context, err error, body any) error {
 			funcName := runtime.FuncForPC(pc).Name()
 			function = funcName
 		}
-
 		shortFile := strings.Split(file, "/")[len(strings.Split(file, "/"))-1]
 
 		e.Logger().Debugf("%s:%v | Error: %v at %s", shortFile, line, err, function)
 		var numError *strconv.NumError
 		var httpError *echo.HTTPError
 		switch {
+		case errors.Is(err, domain.ErrAuthorizationFailed):
+			return e.JSON(http.StatusForbidden, errorResponse("Authorization failed"))
+		case errors.Is(err, domain.ErrAuthTokenMissing):
+			return e.JSON(http.StatusUnauthorized, errorResponse("Authorization token is missing"))
+		case errors.Is(err, domain.ErrAuthTokenInvalid):
+			return e.JSON(http.StatusUnauthorized, errorResponse("Authorization token is invalid"))
+		case errors.Is(err, domain.ErrRoleExtractionFailed):
+			return e.JSON(http.StatusUnauthorized, errorResponse("Token Invalid: Role extraction failed"))
+		case errors.Is(err, domain.ErrResourceNotFound):
+			return e.JSON(http.StatusNotFound, errorResponse("Resource not found"))
+		case errors.Is(err, domain.ErrValidationFailed):
+			return e.JSON(http.StatusBadRequest, errorResponse("Validation failed"))
 		case errors.Is(err, gorm.ErrDuplicatedKey):
-			return e.JSON(http.StatusConflict, struct {
-				Message string `json:"message"`
-			}{Message: "Duplicated key"})
+			return e.JSON(http.StatusConflict, errorResponse("Duplicated key"))
 		case errors.Is(err, gorm.ErrInvalidData):
-			return e.JSON(http.StatusBadRequest, struct {
-				Message string `json:"message"`
-			}{Message: "Invalid request"})
+			return e.JSON(http.StatusBadRequest, errorResponse("Invalid request"))
 		case errors.Is(err, numError):
-			return e.JSON(http.StatusBadRequest, struct {
-				Message string `json:"message"`
-			}{Message: "Invalid Id"})
+			return e.JSON(http.StatusBadRequest, errorResponse("Invalid number format"))
 		case errors.Is(err, gorm.ErrRecordNotFound):
-			return e.JSON(http.StatusNotFound, struct {
-				Message string `json:"message"`
-			}{Message: "Record not found"})
+			return e.JSON(http.StatusNotFound, errorResponse("Record not found"))
 		case errors.Is(err, echo.ErrUnauthorized):
-			return e.JSON(http.StatusUnauthorized, struct {
-				Message string `json:"message"`
-			}{Message: "Unauthorized"})
+			return e.JSON(http.StatusUnauthorized, errorResponse("Unauthorized"))
 		case errors.Is(err, httpError):
-			return e.JSON(httpError.Code, struct {
-				Message interface{} `json:"message"`
-			}{Message: httpError.Message})
-
+			return e.JSON(httpError.Code, errorResponse(httpError.Message.(string)))
 		default:
-			return e.JSON(http.StatusInternalServerError, struct {
-				Message string `json:"message"`
-			}{Message: err.Error()})
+			return e.JSON(http.StatusInternalServerError, errorResponse(err.Error()))
 		}
 	}
 
 	e.Logger().Debugf("Response body: %v", body)
 	return e.JSON(http.StatusOK, struct{ Body any }{Body: body})
+}
+
+type ErrorResponse struct {
+	Message string `json:"message"`
+}
+
+func errorResponse(message string) ErrorResponse {
+	return ErrorResponse{Message: message}
 }
 
 func ValidateAndBind[T any](e echo.Context, input *T) error {

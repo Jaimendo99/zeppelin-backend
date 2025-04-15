@@ -3,7 +3,9 @@ package domain
 import (
 	"context"
 	"firebase.google.com/go/v4/messaging"
+	"github.com/stretchr/testify/mock"
 	"net/smtp"
+	"testing"
 )
 
 type NotificationQueue struct {
@@ -33,6 +35,27 @@ type NotificationRepo interface {
 type FirebaseMessenger interface {
 	SendEach(ctx context.Context, messages []*messaging.Message) (*messaging.BatchResponse, error)
 	// Add other methods from messaging.Client if your service uses them
+}
+
+type MockNotificationService struct {
+	mock.Mock
+}
+
+func (m *MockNotificationService) SendNotification(notification NotificationData) error {
+	args := m.Called(notification)
+	return args.Error(0)
+}
+
+func NewMockQueue(t *testing.T) *MockQueue {
+	m := new(MockQueue)
+	m.Mock.Test(t) // Associate with the test for better error reporting
+	return m
+}
+
+func NewMockNotificationService(t *testing.T) *MockNotificationService {
+	m := new(MockNotificationService)
+	m.Mock.Test(t) // Associate with the test
+	return m
 }
 
 type SmtpConfig struct {

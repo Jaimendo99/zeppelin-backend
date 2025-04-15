@@ -29,16 +29,16 @@ type RepresentativeInput struct {
 
 type RepresentativeRepo interface {
 	CreateRepresentative(representative RepresentativeDb) error
-	GetRepresentative(representative_id int) (*RepresentativeInput, error)
+	GetRepresentative(representativeId int) (*Representative, error)
 	GetAllRepresentatives() ([]Representative, error)
-	UpdateRepresentative(representative_id int, representative RepresentativeInput) error
+	UpdateRepresentative(representativeId int, representative RepresentativeInput) error
 }
 
 type RepresentativeServiceI interface {
 	CreateRepresentative(representative RepresentativeInput) error
-	GetRepresentative(representative_id string) (RepresentativeDb, error)
+	GetRepresentative(representativeId string) (RepresentativeDb, error)
 	GetAllRepresentatives() ([]Representative, error)
-	UpdateRepresentative(representative_id string, representative RepresentativeInput) error
+	UpdateRepresentative(representativeId string, representative RepresentativeInput) error
 }
 
 // TableName overrides the default table name.
@@ -58,13 +58,13 @@ func (m *MockRepresentativeRepo) CreateRepresentative(representative Representat
 	return args.Error(0)
 }
 
-func (m *MockRepresentativeRepo) GetRepresentative(representative_id int) (*RepresentativeInput, error) {
+func (m *MockRepresentativeRepo) GetRepresentative(representative_id int) (*Representative, error) {
 	args := m.Called(representative_id)
 	res := args.Get(0)
 	if res == nil {
 		return nil, args.Error(1)
 	}
-	return res.(*RepresentativeInput), args.Error(1)
+	return res.(*Representative), args.Error(1)
 }
 
 func (m *MockRepresentativeRepo) GetAllRepresentatives() ([]Representative, error) {
