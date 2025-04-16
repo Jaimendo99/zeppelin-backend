@@ -71,7 +71,7 @@ func main() {
 	routes.DefineAssignmentRoutes(e, roleMiddlewareProvider)
 	routes.DefineNotificationRoutes(e, roleMiddlewareProvider)
 	routes.DefineWebSocketRoutes1(e, auth)
-	routes.DefineAuthRoutes(e, auth.Clerk)
+	routes.DefineAuthRoutes(e, auth.Clerk, roleMiddlewareProvider)
 	defer func(MQConn config.AmqpConnection) {
 		err := MQConn.Close()
 		if err != nil {
