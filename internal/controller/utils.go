@@ -81,6 +81,8 @@ func ReturnWriteResponse(e echo.Context, err error, body any) error {
 		switch {
 		case errors.Is(err, domain.ErrAuthorizationFailed):
 			return e.JSON(http.StatusForbidden, errorResponse("Authorization failed"))
+		case errors.Is(err, domain.ErrRequiredParamsMissing):
+			return e.JSON(http.StatusBadRequest, errorResponse("Required parameters are missing"))
 		case errors.Is(err, domain.ErrAuthTokenMissing):
 			return e.JSON(http.StatusUnauthorized, errorResponse("Authorization token is missing"))
 		case errors.Is(err, domain.ErrAuthTokenInvalid):

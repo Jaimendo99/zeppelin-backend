@@ -1,9 +1,7 @@
 package main
 
 import (
-	"fmt"
 	"log"
-	"net/http"
 	"zeppelin/internal/config"
 	"zeppelin/internal/controller"
 	"zeppelin/internal/routes"
@@ -11,7 +9,6 @@ import (
 
 	inMW "zeppelin/internal/middleware"
 
-	"github.com/clerkinc/clerk-sdk-go/clerk"
 	"github.com/labstack/echo/v4/middleware"
 
 	"github.com/go-playground/validator/v10"
@@ -63,38 +60,6 @@ func main() {
 		e.Logger.Fatal("Error initializing AuthService: ", err)
 	}
 
-	e.GET("tokenFromSession", func(c echo.Context) error {
-		sessionId := c.QueryParam("sessionId")
-		template := c.QueryParam("template")
-
-		if sessionId == "" || template == "" {
-			return c.String(http.StatusBadRequest, "Missing sessionId or template query parameter")
-		}
-
-		urlPath := fmt.Sprintf("sessions/%s/tokens/%s", sessionId, template)
-
-		req, err := auth.Clerk.NewRequest("POST", urlPath, nil)
-		if err != nil {
-			c.Logger().Errorf("Error creating Clerk request: %v", err)
-			return c.String(http.StatusInternalServerError, "Error preparing token request")
-		}
-
-		var tokenResponse = clerk.SessionToken{}
-
-		_, err = auth.Clerk.Do(req, &tokenResponse)
-		if err != nil {
-			c.Logger().Errorf("Error executing Clerk request or processing response: %v", err)
-			return c.String(http.StatusInternalServerError, "Error creating token: "+err.Error())
-		}
-
-		if tokenResponse.JWT == "" {
-			c.Logger().Warnf("Clerk token response successful but JWT was empty for session %s, template %s", sessionId, template)
-			return c.String(http.StatusInternalServerError, "Failed to retrieve token content")
-		}
-
-		return c.JSON(http.StatusOK, tokenResponse)
-	}, inMW.RoleMiddleware(auth, "org:admin", "org:teacher", "org:student"))
-
 	roleMiddlewareProvider := func(roles ...string) echo.MiddlewareFunc {
 		return inMW.RoleMiddleware(auth, roles...)
 	}
@@ -106,6 +71,7 @@ func main() {
 	routes.DefineAssignmentRoutes(e, roleMiddlewareProvider)
 	routes.DefineNotificationRoutes(e, roleMiddlewareProvider)
 	routes.DefineWebSocketRoutes1(e, auth)
+	routes.DefineAuthRoutes(e, auth.Clerk)
 	defer func(MQConn config.AmqpConnection) {
 		err := MQConn.Close()
 		if err != nil {
