@@ -2,6 +2,7 @@ package controller
 
 import (
 	"errors"
+	"github.com/google/uuid"
 	"net/http"
 	"reflect"
 	"runtime"
@@ -59,6 +60,10 @@ type ErrorWithLocation struct {
 	File     string
 	Line     int
 	Function string
+}
+
+func GenerateUID() string {
+	return uuid.New().String() // Genera un UUID único y lo convierte a string
 }
 
 func ReturnWriteResponse(e echo.Context, err error, body any) error {

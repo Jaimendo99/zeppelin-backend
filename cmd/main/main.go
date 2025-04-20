@@ -24,20 +24,20 @@ func init() {
 	if err := config.InitDb(config.GetConnectionString()); err != nil {
 		log.Fatalf("error connecting to database: %v", err)
 	}
+	/*
+		if err := config.InitMQ(config.GetMQConnectionString()); err != nil {
+			log.Fatalf("error connecting to message queue: %v", err)
+		}
 
-	if err := config.InitMQ(config.GetMQConnectionString()); err != nil {
-		log.Fatalf("error connecting to message queue: %v", err)
-	}
+		if err := config.InitFCM(config.GetFirebaseConn()); err != nil {
+			log.Fatalf("error connecting to firebase: %v", err)
+		}
 
-	if err := config.InitFCM(config.GetFirebaseConn()); err != nil {
-		log.Fatalf("error connecting to firebase: %v", err)
-	}
-
-	config.InitSmtp(config.GetSmtpPassword())
-	if err := config.CheckSmtpAuth(config.GetSmtpConfig()); err != nil {
-		log.Fatalf("error authenticating smtp: %v", err)
-	}
-
+		config.InitSmtp(config.GetSmtpPassword())
+		if err := config.CheckSmtpAuth(config.GetSmtpConfig()); err != nil {
+			log.Fatalf("error authenticating smtp: %v", err)
+		}
+	*/
 }
 
 func main() {
@@ -69,8 +69,9 @@ func main() {
 	routes.DefineStudentRoutes(e, auth, roleMiddlewareProvider)
 	routes.DefineCourseRoutes(e, auth, roleMiddlewareProvider)
 	routes.DefineAssignmentRoutes(e, roleMiddlewareProvider)
-	routes.DefineNotificationRoutes(e, roleMiddlewareProvider)
-	routes.DefineWebSocketRoutes1(e, auth)
+	//routes.DefineNotificationRoutes(e, roleMiddlewareProvider)
+	routes.DefineWebSocketRoutes(e, auth)
+	routes.DefineCourseContentRoutes(e)
 	routes.DefineAuthRoutes(e, auth.Clerk, roleMiddlewareProvider)
 	defer func(MQConn config.AmqpConnection) {
 		err := MQConn.Close()
@@ -79,6 +80,6 @@ func main() {
 		}
 	}(config.MQConn)
 
-	e.Logger.Error(e.Start("0.0.0.0:3000"))
+	e.Logger.Error(e.Start("0.0.0.0:8080"))
 
 }
