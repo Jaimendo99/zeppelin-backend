@@ -29,6 +29,7 @@ type UserConn struct {
 }
 
 type ConnectionManager struct {
+	// Key is userID:courseId
 	userConnections map[string][]UserConn
 	mutex           sync.Mutex
 }
@@ -39,17 +40,21 @@ func NewConnectionManager() *ConnectionManager {
 	}
 }
 
-func (cm *ConnectionManager) GetConnectionCount(userID string) int {
+// GetConnectionCount returns the number of connections for a specific user and course.
+func (cm *ConnectionManager) GetConnectionCount(userID, courseId string) int {
 	cm.mutex.Lock()
 	defer cm.mutex.Unlock()
-	return len(cm.userConnections[userID])
+	connKey := userID + ":" + courseId
+	return len(cm.userConnections[connKey])
 }
 
-func (cm *ConnectionManager) GetUserPlatforms(userID string) map[string]int {
+// GetUserPlatforms returns the platform distribution for connections for a specific user and course.
+func (cm *ConnectionManager) GetUserPlatforms(userID, courseId string) map[string]int {
 	cm.mutex.Lock()
 	defer cm.mutex.Unlock()
+	connKey := userID + ":" + courseId
 	platforms := make(map[string]int)
-	if conns, exists := cm.userConnections[userID]; exists {
+	if conns, exists := cm.userConnections[connKey]; exists {
 		for _, uc := range conns {
 			platforms[uc.Platform]++
 		}
@@ -57,9 +62,12 @@ func (cm *ConnectionManager) GetUserPlatforms(userID string) map[string]int {
 	return platforms
 }
 
-func (cm *ConnectionManager) sendStatusUpdate(logger echo.Logger, userID string) {
+// sendStatusUpdate sends a status update message to all connections for a specific user and course.
+func (cm *ConnectionManager) sendStatusUpdate(logger echo.Logger, userID, courseId string) {
+	connKey := userID + ":" + courseId
+
 	cm.mutex.Lock()
-	conns := cm.userConnections[userID]
+	conns := cm.userConnections[connKey]
 	cm.mutex.Unlock()
 
 	if len(conns) == 0 {
@@ -76,38 +84,43 @@ func (cm *ConnectionManager) sendStatusUpdate(logger echo.Logger, userID string)
 		"user_id":     userID,
 		"connections": len(conns),
 		"platforms":   platforms,
+		"course_id":   courseId,
 	}
 
 	jsonData, err := json.Marshal(status)
 	if err != nil {
-		logger.Errorf("User %s: Failed to marshal status update: %v", userID, err)
+		logger.Errorf("User %s (Course %s): Failed to marshal status update: %v", userID, courseId, err)
 		return
 	}
 
 	cm.mutex.Lock()
-	connsToSend := cm.userConnections[userID]
+	connsToSend := cm.userConnections[connKey]
 	cm.mutex.Unlock()
 
 	for _, uc := range connsToSend {
 		if err := uc.Conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
-			logger.Warnf("User %s (Platform %s): Failed to set write deadline: %v", userID, uc.Platform, err)
+			logger.Warnf("User %s (Course %s, Platform %s): Failed to set write deadline: %v", userID, courseId, uc.Platform, err)
 		}
 
 		if err := uc.Conn.WriteMessage(websocket.TextMessage, jsonData); err != nil {
-			logger.Warnf("User %s (Platform %s): Failed to write status update: %v", userID, uc.Platform, err)
+			logger.Warnf("User %s (Course %s, Platform %s): Failed to write status update: %v", userID, courseId, uc.Platform, err)
 		}
 
 		_ = uc.Conn.SetWriteDeadline(time.Time{})
 	}
 }
 
-func (cm *ConnectionManager) removeConnection(logger echo.Logger, userID string, connToRemove *websocket.Conn) bool {
+// removeConnection removes a specific connection for a given user and course.
+// Returns true if other connections remain for this user/course group, false otherwise.
+func (cm *ConnectionManager) removeConnection(logger echo.Logger, userID, courseId string, connToRemove *websocket.Conn) bool {
+	connKey := userID + ":" + courseId // Added courseId and created key
+
 	cm.mutex.Lock()
 	defer cm.mutex.Unlock()
 
-	conns, exists := cm.userConnections[userID]
+	conns, exists := cm.userConnections[connKey] // Used connKey
 	if !exists {
-		logger.Warnf("User %s: Attempted to remove connection, but user entry already gone.", userID)
+		logger.Warnf("User %s (Course %s): Attempted to remove connection, but user/course entry already gone.", userID, courseId)
 		return false
 	}
 
@@ -122,18 +135,18 @@ func (cm *ConnectionManager) removeConnection(logger echo.Logger, userID string,
 	}
 
 	if !found {
-		logger.Warnf("User %s: Attempted to remove connection, but specific connection not found in list.", userID)
-		return len(conns) > 0
+		logger.Warnf("User %s (Course %s): Attempted to remove connection, but specific connection not found in list.", userID, courseId)
+		return len(conns) > 0 // Still return if the original list had connections
 	}
 
 	if len(updatedConns) == 0 {
-		delete(cm.userConnections, userID)
-		logger.Infof("User %s: Removed last connection.", userID)
+		delete(cm.userConnections, connKey) // Used connKey
+		logger.Infof("User %s (Course %s): Removed last connection.", userID, courseId)
 		return false
 	}
 
-	cm.userConnections[userID] = updatedConns
-	logger.Infof("User %s: Removed connection. Remaining: %d.", userID, len(updatedConns))
+	cm.userConnections[connKey] = updatedConns // Used connKey
+	logger.Infof("User %s (Course %s): Removed connection. Remaining: %d.", userID, courseId, len(updatedConns))
 	return true
 }
 
@@ -143,11 +156,17 @@ func (cm *ConnectionManager) WebSocketHandler() echo.HandlerFunc {
 
 		platform := c.QueryParam("platform")
 		if platform == "" {
-			platform = "unknown"
+			platform = "unknown" // Keep "unknown" as default if empty, although validation below overrides
 		}
 		if platform != "web" && platform != "mobile" {
 			logger.Errorf("User: Invalid platform: %s", platform)
 			return c.String(http.StatusBadRequest, "Invalid platform")
+		}
+
+		courseId := c.QueryParam("courseId")
+		if courseId == "" {
+			logger.Errorf("User: Invalid course ID")
+			return c.String(http.StatusBadRequest, "Invalid course ID")
 		}
 
 		userIDRaw := c.Get("user_id")
@@ -157,8 +176,10 @@ func (cm *ConnectionManager) WebSocketHandler() echo.HandlerFunc {
 			return c.String(http.StatusUnauthorized, "Invalid user ID")
 		}
 
+		connKey := userID + ":" + courseId // Created connKey
+
 		cm.mutex.Lock()
-		conns := cm.userConnections[userID]
+		conns := cm.userConnections[connKey] // Used connKey
 		webConnected := false
 		webCount := 0
 		mobileCount := 0
@@ -171,54 +192,57 @@ func (cm *ConnectionManager) WebSocketHandler() echo.HandlerFunc {
 			}
 		}
 
-		// Check connection limits
+		// Check connection limits per user/course group
 		if platform == "web" && webCount > 0 {
 			cm.mutex.Unlock()
-			logger.Errorf("User %s: Web connection already exists", userID)
-			return c.String(http.StatusForbidden, "Only one web connection allowed")
+			logger.Errorf("User %s (Course %s): Web connection already exists", userID, courseId)
+			return c.String(http.StatusForbidden, "Only one web connection allowed per course")
 		}
 		if platform == "mobile" && mobileCount > 0 {
 			cm.mutex.Unlock()
-			logger.Errorf("User %s: Mobile connection already exists", userID)
-			return c.String(http.StatusForbidden, "Only one mobile connection allowed")
+			logger.Errorf("User %s (Course %s): Mobile connection already exists", userID, courseId)
+			return c.String(http.StatusForbidden, "Only one mobile connection allowed per course")
 		}
+
 		if platform == "mobile" && !webConnected {
 			cm.mutex.Unlock()
-			logger.Errorf("User %s: Mobile connection rejected, no web connection active", userID)
-			return c.String(http.StatusForbidden, "Web connection required first")
+			logger.Errorf("User %s (Course %s): Mobile connection rejected, no web connection active for this course", userID, courseId) // Adjusted log message
+			return c.String(http.StatusForbidden, "Web connection required for this course first")                                       // Adjusted error message
 		}
 		cm.mutex.Unlock()
 
 		conn, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
 		if err != nil {
-			logger.Errorf("User %s: Failed WebSocket upgrade: %v", userID, err)
+			logger.Errorf("User %s (Course %s): Failed WebSocket upgrade: %v", userID, courseId, err) // Updated log
 			return nil
 		}
-		logger.Infof("User %s: WebSocket connection established from %s (Platform: %s)", userID, conn.RemoteAddr(), platform)
+		logger.Infof("User %s (Course %s): WebSocket connection established from %s (Platform: %s)", userID, courseId, conn.RemoteAddr(), platform) // Updated log
 
 		userConn := UserConn{Conn: conn, Platform: platform}
 
 		cm.mutex.Lock()
-		cm.userConnections[userID] = append(cm.userConnections[userID], userConn)
+		cm.userConnections[connKey] = append(cm.userConnections[connKey], userConn) // Used connKey
 		cm.mutex.Unlock()
 
-		cm.sendStatusUpdate(logger, userID)
+		cm.sendStatusUpdate(logger, userID, courseId) // Passed courseId
 
-		go cm.readPump(logger, userID, platform, conn)
+		go cm.readPump(logger, userID, courseId, platform, conn) // Passed courseId
 
 		return nil
 	}
 }
 
-func (cm *ConnectionManager) readPump(logger echo.Logger, userID, platform string, conn *websocket.Conn) {
+func (cm *ConnectionManager) readPump(logger echo.Logger, userID, courseId, platform string, conn *websocket.Conn) { // Added courseId
+	connKey := userID + ":" + courseId // Created connKey
+
 	defer func() {
-		logger.Infof("User %s (Platform %s): Cleaning up connection.", userID, platform)
-		othersRemain := cm.removeConnection(logger, userID, conn)
+		logger.Infof("User %s (Course %s, Platform %s): Cleaning up connection.", userID, courseId, platform) // Updated log
+		othersRemain := cm.removeConnection(logger, userID, courseId, conn)                                   // Passed courseId
 		if othersRemain {
-			cm.sendStatusUpdate(logger, userID)
+			cm.sendStatusUpdate(logger, userID, courseId) // Passed courseId
 		}
 		_ = conn.Close()
-		logger.Infof("User %s (Platform %s): Connection cleanup finished.", userID, platform)
+		logger.Infof("User %s (Course %s, Platform %s): Connection cleanup finished.", userID, courseId, platform) // Updated log
 	}()
 
 	for {
@@ -226,17 +250,17 @@ func (cm *ConnectionManager) readPump(logger echo.Logger, userID, platform strin
 		if err != nil {
 			var e *websocket.CloseError
 			if errors.As(err, &e) && (e.Code == websocket.CloseNormalClosure || e.Code == websocket.CloseGoingAway || e.Code == websocket.CloseAbnormalClosure) {
-				logger.Infof("User %s (Platform %s): WebSocket closed normally (code %d).", userID, platform, e.Code)
+				logger.Infof("User %s (Course %s, Platform %s): WebSocket closed normally (code %d).", userID, courseId, platform, e.Code) // Updated log
 			} else {
-				logger.Warnf("User %s (Platform %s): Error reading message: %v", userID, platform, err)
+				logger.Warnf("User %s (Course %s, Platform %s): Error reading message: %v", userID, courseId, platform, err) // Updated log
 			}
 			break
 		}
 
-		logger.Infof("User %s (Platform %s): Received message (type %d): %s", userID, platform, msgType, string(message))
+		logger.Infof("User %s (Course %s, Platform %s): Received message (type %d): %s", userID, courseId, platform, msgType, string(message)) // Updated log
 
 		cm.mutex.Lock()
-		conns, exists := cm.userConnections[userID]
+		conns, exists := cm.userConnections[connKey] // Used connKey
 		cm.mutex.Unlock()
 
 		if !exists {
@@ -246,10 +270,10 @@ func (cm *ConnectionManager) readPump(logger echo.Logger, userID, platform strin
 		for _, uc := range conns {
 			if uc.Conn != conn {
 				if err := uc.Conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
-					logger.Warnf("User %s (Platform %s): Broadcast - Failed to set write deadline for target %s: %v", userID, platform, uc.Platform, err)
+					logger.Warnf("User %s (Course %s, Platform %s): Broadcast - Failed to set write deadline for target %s: %v", userID, courseId, platform, uc.Platform, err) // Updated log
 				}
 				if err := uc.Conn.WriteMessage(msgType, message); err != nil {
-					logger.Warnf("User %s (Platform %s): Failed to broadcast message to target %s: %v", userID, platform, uc.Platform, err)
+					logger.Warnf("User %s (Course %s, Platform %s): Failed to broadcast message to target %s: %v", userID, courseId, platform, uc.Platform, err) // Updated log
 				}
 				_ = uc.Conn.SetWriteDeadline(time.Time{})
 			}

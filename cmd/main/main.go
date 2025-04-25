@@ -67,7 +67,7 @@ func main() {
 	routes.DefineStudentRoutes(e, auth, roleMiddlewareProvider)
 	routes.DefineCourseRoutes(e, auth, roleMiddlewareProvider)
 	routes.DefineAssignmentRoutes(e, roleMiddlewareProvider)
-	//routes.DefineNotificationRoutes(e, roleMiddlewareProvider)
+	routes.DefineNotificationRoutes(e, roleMiddlewareProvider)
 	routes.DefineWebSocketRoutes(e, auth)
 	routes.DefineCourseContentRoutes(e)
 	routes.DefineAuthRoutes(e, auth.Clerk, roleMiddlewareProvider)
