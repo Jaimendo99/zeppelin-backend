@@ -30,7 +30,7 @@ jobs:
       - name: Upload built binary
         uses: actions/upload-artifact@v4.6.0
         with:
-          name: main
+          name: main-${{ github.sha }}
           path: main
 
   build_and_push:
