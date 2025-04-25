@@ -1,4 +1,4 @@
-package controller_test // Correct package name
+package controller_test
 
 import (
 	"encoding/json"
@@ -11,8 +11,7 @@ import (
 	"testing"
 	"time"
 
-	// Import the package under test
-	"zeppelin/internal/controller" // Adjust the import path to your actual controller package
+	"zeppelin/internal/controller"
 
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
@@ -20,9 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// setupTestServer now returns the ConnectionManager instance from the controller package
 func setupTestServer(t *testing.T, userID string) (*httptest.Server, string, *controller.ConnectionManager) {
-	// Create the manager using the imported package's constructor
 	connManager := controller.NewConnectionManager()
 
 	e := echo.New()
@@ -38,7 +35,6 @@ func setupTestServer(t *testing.T, userID string) (*httptest.Server, string, *co
 		}
 	}
 
-	// Register the METHOD from the specific instance
 	e.GET("/ws", connManager.WebSocketHandler(), authMiddleware)
 
 	server := httptest.NewServer(e)
@@ -50,9 +46,7 @@ func setupTestServer(t *testing.T, userID string) (*httptest.Server, string, *co
 	return server, wsURL, connManager
 }
 
-// connectWebSocketNoCleanup remains the same
 func connectWebSocketNoCleanup(t *testing.T, wsURL string, platform string) *websocket.Conn {
-	// ... (implementation as before) ...
 	dialer := websocket.Dialer{}
 	query := url.Values{}
 	query.Set("platform", platform)
@@ -71,9 +65,7 @@ func connectWebSocketNoCleanup(t *testing.T, wsURL string, platform string) *web
 	return conn
 }
 
-// readJSONMessage remains the same
 func readJSONMessage(t *testing.T, conn *websocket.Conn) map[string]interface{} {
-	// ... (implementation as before) ...
 	t.Logf("DEBUG: Attempting to read message from WebSocket...")
 	msgType, msgBytes, err := conn.ReadMessage()
 	if err != nil {
@@ -96,12 +88,9 @@ func readJSONMessage(t *testing.T, conn *websocket.Conn) map[string]interface{} 
 	return data
 }
 
-// --- Test Case ---
-
 func TestWebSocketHandler_ConnectionAndStatus(t *testing.T) {
 	userID := "user-123"
 	platform := "web"
-	// Get the connManager instance (type *controller.ConnectionManager)
 	server, wsURL, connManager := setupTestServer(t, userID)
 	defer server.Close()
 
@@ -118,201 +107,289 @@ func TestWebSocketHandler_ConnectionAndStatus(t *testing.T) {
 		t.Logf("DEBUG: Test defer: Finished.")
 	}()
 
-	// --- Check State BEFORE Reading Message using Exported Methods ---
-	t.Logf("DEBUG: Test: Waiting briefly before checking state...")
-	time.Sleep(50 * time.Millisecond) // Allow handler time to process
+	time.Sleep(50 * time.Millisecond)
 
 	t.Logf("DEBUG: Test: Checking state BEFORE reading message for %s.", userID)
-	// Use the exported methods - no manual locking needed here
 	connectionCount := connManager.GetConnectionCount(userID)
 	platformCounts := connManager.GetUserPlatforms(userID)
 	t.Logf("DEBUG: Test: Checked state BEFORE reading. Count: %d, Platforms: %v", connectionCount, platformCounts)
 
-	// Assert state BEFORE reading
 	require.Equal(t, 1, connectionCount, "Should have 1 connection for the user shortly after connect")
 	require.Contains(t, platformCounts, platform, "Platform map should contain the connected platform")
 	assert.Equal(t, 1, platformCounts[platform], "Platform count for '%s' should be 1", platform)
 	assert.Len(t, platformCounts, 1, "Platform map should only contain one entry")
-	// ---------------------------------------------
 
-	// 1. Now, verify the initial status update message
 	t.Logf("DEBUG: Test: Attempting to read initial status message for %s.", userID)
 	statusMsg := readJSONMessage(t, conn)
 	t.Logf("DEBUG: Test: Successfully read initial status message for %s.", userID)
 
 	assert.Equal(t, "status_update", statusMsg["type"])
 	assert.Equal(t, userID, statusMsg["user_id"])
-	assert.Equal(t, float64(1), statusMsg["connections"]) // Check message content
+	assert.Equal(t, float64(1), statusMsg["connections"])
 	statusPlatformsMap, ok := statusMsg["platforms"].(map[string]interface{})
 	require.True(t, ok, "Status message 'platforms' should be a map")
-	// JSON unmarshals numbers to float64
 	assert.Equal(t, float64(1), statusPlatformsMap[platform], "Status message platform count mismatch")
 	assert.Len(t, statusPlatformsMap, 1, "Status message platform map size mismatch")
-
-	// 2. Optional: Verify state AGAIN AFTER reading (should still be the same)
-	t.Logf("DEBUG: Test: Checking state AGAIN AFTER reading message for %s.", userID)
-	connectionCountAfter := connManager.GetConnectionCount(userID)
-	platformCountsAfter := connManager.GetUserPlatforms(userID)
-	t.Logf("DEBUG: Test: Checked state AFTER reading. Count: %d, Platforms: %v", connectionCountAfter, platformCountsAfter)
-	require.Equal(t, 1, connectionCountAfter, "Should still have 1 connection after reading message")
-	assert.Equal(t, 1, platformCountsAfter[platform], "Platform count should still be 1 after reading")
-	assert.Len(t, platformCountsAfter, 1, "Platform map size should still be 1 after reading")
 }
 
-// --- Add other test cases (MultipleConnections, Disconnect, etc.) ---
-// Remember to adapt them to use connManager.GetConnectionCount() and
-// connManager.GetUserPlatforms() instead of direct map access.
-
-// TestWebSocketHandler_MultipleConnections (Adapted version from previous step)
-func TestWebSocketHandler_MultipleConnections(t *testing.T) {
+func TestWebSocketHandler_WebAndMobileConnections(t *testing.T) {
 	userID := "user-multi"
-	platform1 := "ios"
-	platform2 := "android"
+	platformWeb := "web"
+	platformMobile := "mobile"
 	server, wsURL, connManager := setupTestServer(t, userID)
 	defer server.Close()
 
-	// Connect first client
-	conn1 := connectWebSocketNoCleanup(t, wsURL, platform1)
-	defer conn1.Close() // Simple defer for cleanup
+	// Connect web client
+	conn1 := connectWebSocketNoCleanup(t, wsURL, platformWeb)
+	defer conn1.Close()
 
-	// Read initial status for client 1 & verify state
+	// Read initial status for web client
 	statusMsg1 := readJSONMessage(t, conn1)
 	assert.Equal(t, float64(1), statusMsg1["connections"])
-	time.Sleep(20 * time.Millisecond) // Allow state update
-	assert.Equal(t, 1, connManager.GetConnectionCount(userID), "Count should be 1 after first connect")
-	assert.Equal(t, 1, connManager.GetUserPlatforms(userID)[platform1], "Platform 1 count should be 1")
+	time.Sleep(20 * time.Millisecond)
+	assert.Equal(t, 1, connManager.GetConnectionCount(userID), "Count should be 1 after web connect")
+	assert.Equal(t, 1, connManager.GetUserPlatforms(userID)[platformWeb], "Web platform count should be 1")
 
-	// Connect second client
-	conn2 := connectWebSocketNoCleanup(t, wsURL, platform2)
-	defer conn2.Close() // Simple defer
+	// Connect mobile client
+	conn2 := connectWebSocketNoCleanup(t, wsURL, platformMobile)
+	defer conn2.Close()
 
-	// Read updated status for client 1 (should now show 2 connections)
+	// Read updated status for web client (should show 2 connections)
 	statusMsg1_updated := readJSONMessage(t, conn1)
 	assert.Equal(t, float64(2), statusMsg1_updated["connections"])
 	platformsMap1_updated, _ := statusMsg1_updated["platforms"].(map[string]interface{})
-	assert.Equal(t, float64(1), platformsMap1_updated[platform1])
-	assert.Equal(t, float64(1), platformsMap1_updated[platform2])
+	assert.Equal(t, float64(1), platformsMap1_updated[platformWeb])
+	assert.Equal(t, float64(1), platformsMap1_updated[platformMobile])
 
-	// Read initial status for client 2 (should show 2 connections)
+	// Read initial status for mobile client (should show 2 connections)
 	statusMsg2 := readJSONMessage(t, conn2)
 	assert.Equal(t, float64(2), statusMsg2["connections"])
 	platformsMap2, _ := statusMsg2["platforms"].(map[string]interface{})
-	assert.Equal(t, float64(1), platformsMap2[platform1])
-	assert.Equal(t, float64(1), platformsMap2[platform2])
+	assert.Equal(t, float64(1), platformsMap2[platformWeb])
+	assert.Equal(t, float64(1), platformsMap2[platformMobile])
 
-	// Verify internal state using helpers
-	time.Sleep(20 * time.Millisecond) // Allow state update
-	assert.Equal(t, 2, connManager.GetConnectionCount(userID), "Count should be 2 after second connect")
+	// Verify internal state
+	time.Sleep(20 * time.Millisecond)
+	assert.Equal(t, 2, connManager.GetConnectionCount(userID), "Count should be 2 after mobile connect")
 	platforms := connManager.GetUserPlatforms(userID)
 	assert.Len(t, platforms, 2, "Should have 2 platforms registered")
-	assert.Equal(t, 1, platforms[platform1], "Platform 1 count should be 1")
-	assert.Equal(t, 1, platforms[platform2], "Platform 2 count should be 1")
+	assert.Equal(t, 1, platforms[platformWeb], "Web platform count should be 1")
+	assert.Equal(t, 1, platforms[platformMobile], "Mobile platform count should be 1")
+}
+
+func TestWebSocketHandler_SecondWebConnectionRejected(t *testing.T) {
+	userID := "user-second-web"
+	platform := "web"
+	server, wsURL, connManager := setupTestServer(t, userID)
+	defer server.Close()
+
+	// Connect first web client
+	conn1 := connectWebSocketNoCleanup(t, wsURL, platform)
+	defer conn1.Close()
+	_ = readJSONMessage(t, conn1) // Read initial status
+	time.Sleep(20 * time.Millisecond)
+	assert.Equal(t, 1, connManager.GetConnectionCount(userID), "Count should be 1 after first web connect")
+
+	// Attempt to connect second web client
+	dialer := websocket.Dialer{}
+	query := url.Values{}
+	query.Set("platform", platform)
+	t.Logf("DEBUG: Test SecondWeb: Attempting to dial second web client: %s?%s", wsURL, query.Encode())
+	_, resp, err := dialer.Dial(wsURL+"?"+query.Encode(), nil)
+	require.Error(t, err, "Expected an error due to second web connection")
+	assert.Contains(t, err.Error(), "bad handshake", "Error should indicate bad handshake")
+	require.NotNil(t, resp, "Response should not be nil")
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode, "Expected Forbidden status")
+	t.Logf("DEBUG: Test SecondWeb: Received expected status code %d", resp.StatusCode)
+
+	// Verify state remains unchanged
+	time.Sleep(20 * time.Millisecond)
+	assert.Equal(t, 1, connManager.GetConnectionCount(userID), "Count should still be 1")
+	platforms := connManager.GetUserPlatforms(userID)
+	assert.Equal(t, 1, platforms[platform], "Web platform count should still be 1")
+}
+
+func TestWebSocketHandler_SecondMobileConnectionRejected(t *testing.T) {
+	userID := "user-second-mobile"
+	platformWeb := "web"
+	platformMobile := "mobile"
+	server, wsURL, connManager := setupTestServer(t, userID)
+	defer server.Close()
+
+	// Connect web client
+	conn1 := connectWebSocketNoCleanup(t, wsURL, platformWeb)
+	defer conn1.Close()
+	_ = readJSONMessage(t, conn1) // Read initial status
+
+	// Connect first mobile client
+	conn2 := connectWebSocketNoCleanup(t, wsURL, platformMobile)
+	defer conn2.Close()
+	_ = readJSONMessage(t, conn2) // Read initial status
+	_ = readJSONMessage(t, conn1) // Read updated status
+	time.Sleep(20 * time.Millisecond)
+	assert.Equal(t, 2, connManager.GetConnectionCount(userID), "Count should be 2 after mobile connect")
+
+	// Attempt to connect second mobile client
+	dialer := websocket.Dialer{}
+	query := url.Values{}
+	query.Set("platform", platformMobile)
+	t.Logf("DEBUG: Test SecondMobile: Attempting to dial second mobile client: %s?%s", wsURL, query.Encode())
+	_, resp, err := dialer.Dial(wsURL+"?"+query.Encode(), nil)
+	require.Error(t, err, "Expected an error due to second mobile connection")
+	assert.Contains(t, err.Error(), "bad handshake", "Error should indicate bad handshake")
+	require.NotNil(t, resp, "Response should not be nil")
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode, "Expected Forbidden status")
+	t.Logf("DEBUG: Test SecondMobile: Received expected status code %d", resp.StatusCode)
+
+	// Verify state remains unchanged
+	time.Sleep(20 * time.Millisecond)
+	assert.Equal(t, 2, connManager.GetConnectionCount(userID), "Count should still be 2")
+	platforms := connManager.GetUserPlatforms(userID)
+	assert.Equal(t, 1, platforms[platformWeb], "Web platform count should be 1")
+	assert.Equal(t, 1, platforms[platformMobile], "Mobile platform count should be 1")
+}
+
+func TestWebSocketHandler_MobileWithoutWebRejectedtheater(t *testing.T) {
+	userID := "user-no-web"
+	platformMobile := "mobile"
+	server, wsURL, connManager := setupTestServer(t, userID)
+	defer server.Close()
+
+	// Attempt to connect mobile client without web
+	dialer := websocket.Dialer{}
+	query := url.Values{}
+	query.Set("platform", platformMobile)
+	t.Logf("DEBUG: Test MobileWithoutWeb: Attempting to dial mobile client: %s?%s", wsURL, query.Encode())
+	_, resp, err := dialer.Dial(wsURL+"?"+query.Encode(), nil)
+	require.Error(t, err, "Expected an error due to mobile connection without web")
+	assert.Contains(t, err.Error(), "bad handshake", "Error should indicate bad handshake")
+	require.NotNil(t, resp, "Response should not be nil")
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode, "Expected Forbidden status")
+	t.Logf("DEBUG: Test MobileWithoutWeb: Received expected status code %d", resp.StatusCode)
+
+	// Verify no connections were established
+	time.Sleep(20 * time.Millisecond)
+	assert.Equal(t, 0, connManager.GetConnectionCount(userID), "Count should be 0")
+}
+
+func TestWebSocketHandler_InvalidPlatform(t *testing.T) {
+	userID := "user-invalid-platform"
+	platform := "invalid"
+	server, wsURL, connManager := setupTestServer(t, userID)
+	defer server.Close()
+
+	// Attempt to connect with invalid platform
+	dialer := websocket.Dialer{}
+	query := url.Values{}
+	query.Set("platform", platform)
+	t.Logf("DEBUG: Test InvalidPlatform: Attempting to dial with invalid platform: %s?%s", wsURL, query.Encode())
+	_, resp, err := dialer.Dial(wsURL+"?"+query.Encode(), nil)
+	require.Error(t, err, "Expected an error due to invalid platform")
+	assert.Contains(t, err.Error(), "bad handshake", "Error should indicate bad handshake")
+	require.NotNil(t, resp, "Response should not be nil")
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode, "Expected Bad Request status")
+	t.Logf("DEBUG: Test InvalidPlatform: Received expected status code %d", resp.StatusCode)
+
+	// Verify no connections were established
+	time.Sleep(20 * time.Millisecond)
+	assert.Equal(t, 0, connManager.GetConnectionCount(userID), "Count should be 0")
 }
 
 func TestWebSocketHandler_MessageBroadcasting(t *testing.T) {
 	userID := "user-broadcast"
-	platform1 := "web"
-	platform2 := "desktop"
-	// connManager is not strictly needed for assertions here, but setup returns it
+	platformWeb := "web"
+	platformMobile := "mobile"
 	server, wsURL, _ := setupTestServer(t, userID)
 	defer server.Close()
 
-	conn1 := connectWebSocketNoCleanup(t, wsURL, platform1)
-	defer conn1.Close()           // Ensure cleanup
+	conn1 := connectWebSocketNoCleanup(t, wsURL, platformWeb)
+	defer conn1.Close()
 	_ = readJSONMessage(t, conn1) // Read initial status (1 conn)
 
-	conn2 := connectWebSocketNoCleanup(t, wsURL, platform2)
-	defer conn2.Close()           // Ensure cleanup
+	conn2 := connectWebSocketNoCleanup(t, wsURL, platformMobile)
+	defer conn2.Close()
 	_ = readJSONMessage(t, conn1) // Read updated status on conn1 (2 conns)
 	_ = readJSONMessage(t, conn2) // Read initial status on conn2 (2 conns)
 
-	// Send message from client 1
-	testMessage := []byte("hello from client 1")
+	// Send message from web client
+	testMessage := []byte("hello from web")
 	t.Logf("DEBUG: Test Broadcast: Sending message from conn1")
 	err := conn1.WriteMessage(websocket.TextMessage, testMessage)
 	require.NoError(t, err)
 	t.Logf("DEBUG: Test Broadcast: Message sent from conn1")
 
-	// Client 2 should receive the message
+	// Mobile client should receive the message
 	t.Logf("DEBUG: Test Broadcast: Attempting read on conn2")
-	// Set a reasonable deadline for receiving the broadcast
 	err = conn2.SetReadDeadline(time.Now().Add(1 * time.Second))
 	require.NoError(t, err)
 	msgType, msgBytes, err := conn2.ReadMessage()
-	require.NoError(t, err, "Client 2 failed to read broadcast message")
+	require.NoError(t, err, "Mobile client failed to read broadcast message")
 	assert.Equal(t, websocket.TextMessage, msgType)
 	assert.Equal(t, testMessage, msgBytes)
 	t.Logf("DEBUG: Test Broadcast: Received broadcast on conn2")
 
-	// Client 1 should NOT receive its own message
+	// Web client should NOT receive its own message
 	t.Logf("DEBUG: Test Broadcast: Attempting read on conn1 (should timeout)")
-	// Set a short deadline - expecting ReadMessage to time out
 	err = conn1.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 	require.NoError(t, err)
 	_, _, err = conn1.ReadMessage()
-	assert.Error(t, err, "Client 1 should not have received its own message")
-	// Check if the error is a timeout error
+	assert.Error(t, err, "Web client should not have received its own message")
 	netErr, ok := err.(net.Error)
 	assert.True(t, ok && netErr.Timeout(), "Expected a timeout error on conn1, got: %v", err)
 	t.Logf("DEBUG: Test Broadcast: Correctly timed out reading on conn1")
 
-	// Reset deadline for cleanup
-	err = conn1.SetReadDeadline(time.Time{}) // No deadline
+	// Reset deadlines
+	err = conn1.SetReadDeadline(time.Time{})
 	require.NoError(t, err)
-	err = conn2.SetReadDeadline(time.Time{}) // No deadline
+	err = conn2.SetReadDeadline(time.Time{})
 	require.NoError(t, err)
 }
 
 func TestWebSocketHandler_Disconnect(t *testing.T) {
 	userID := "user-disconnect"
-	platform1 := "web"
-	platform2 := "mobile"
+	platformWeb := "web"
+	platformMobile := "mobile"
 	server, wsURL, connManager := setupTestServer(t, userID)
 	defer server.Close()
 
-	conn1 := connectWebSocketNoCleanup(t, wsURL, platform1)
-	// No defer for conn1 yet, we close it manually
+	conn1 := connectWebSocketNoCleanup(t, wsURL, platformWeb)
+	conn2 := connectWebSocketNoCleanup(t, wsURL, platformMobile)
+	defer conn2.Close()
 
-	conn2 := connectWebSocketNoCleanup(t, wsURL, platform2)
-	defer conn2.Close() // conn2 stays open until test end
-
-	// Read initial messages to clear buffers and confirm setup
+	// Read initial messages to clear buffers
 	_ = readJSONMessage(t, conn1) // conn1 status (1 conn)
 	_ = readJSONMessage(t, conn1) // conn1 status update (2 conns)
 	_ = readJSONMessage(t, conn2) // conn2 status (2 conns)
 
 	// Verify initial state
-	time.Sleep(20 * time.Millisecond) // Allow potential state updates
+	time.Sleep(20 * time.Millisecond)
 	require.Equal(t, 2, connManager.GetConnectionCount(userID), "Should have 2 connections initially")
 
-	// Disconnect client 1
+	// Disconnect web client
 	t.Logf("DEBUG: Test Disconnect: Closing conn1")
-	// Send close frame first for cleaner server-side handling
 	_ = conn1.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 	time.Sleep(10 * time.Millisecond)
 	err := conn1.Close()
 	require.NoError(t, err)
 	t.Logf("DEBUG: Test Disconnect: conn1 closed")
 
-	// Client 2 should receive a status update indicating only 1 connection left
+	// Mobile client should receive a status update indicating only 1 connection left
 	t.Logf("DEBUG: Test Disconnect: Attempting read on conn2 for status update")
-	// Set deadline for receiving the update
 	err = conn2.SetReadDeadline(time.Now().Add(2 * time.Second))
 	require.NoError(t, err)
-	statusMsg := readJSONMessage(t, conn2) // This read serves as synchronization
+	statusMsg := readJSONMessage(t, conn2)
 	t.Logf("DEBUG: Test Disconnect: Received message on conn2 after conn1 close")
 
 	assert.Equal(t, "status_update", statusMsg["type"])
 	assert.Equal(t, userID, statusMsg["user_id"])
-	assert.Equal(t, float64(1), statusMsg["connections"]) // Only conn2 left
+	assert.Equal(t, float64(1), statusMsg["connections"])
 	platformsMap, ok := statusMsg["platforms"].(map[string]interface{})
 	require.True(t, ok)
-	_, exists1 := platformsMap[platform1]
-	assert.False(t, exists1, "Platform1 should be removed from status message")
-	assert.Equal(t, float64(1), platformsMap[platform2]) // Platform2 should remain
+	_, exists1 := platformsMap[platformWeb]
+	assert.False(t, exists1, "Web platform should be removed from status message")
+	assert.Equal(t, float64(1), platformsMap[platformMobile])
 
-	// Verify internal state using exported methods AFTER the update was received
-	// Add a small delay to ensure server goroutine cleanup has likely finished
+	// Verify internal state
 	time.Sleep(50 * time.Millisecond)
 	t.Logf("DEBUG: Test Disconnect: Checking final state via ConnectionManager")
 	finalCount := connManager.GetConnectionCount(userID)
@@ -321,43 +398,25 @@ func TestWebSocketHandler_Disconnect(t *testing.T) {
 
 	assert.Equal(t, 1, finalCount, "Should only have one connection left in manager")
 	assert.Len(t, finalPlatforms, 1, "Should only have one platform left in manager")
-	assert.Equal(t, 1, finalPlatforms[platform2], "Remaining platform should be platform2")
-
-	// Reset deadline
-	err = conn2.SetReadDeadline(time.Time{})
-	require.NoError(t, err)
+	assert.Equal(t, 1, finalPlatforms[platformMobile], "Remaining platform should be mobile")
 }
 
 func TestWebSocketHandler_NoUserID(t *testing.T) {
-	// Setup server BUT pass an empty userID to simulate missing auth info
-	// The connManager instance isn't used for assertions here.
-	server, wsURL, _ := setupTestServer(t, "") // Pass empty userID
+	server, wsURL, _ := setupTestServer(t, "")
 	defer server.Close()
 
 	dialer := websocket.Dialer{}
 	query := url.Values{}
-	query.Set("platform", "test-no-auth")
+	query.Set("platform", "web")
 
 	t.Logf("DEBUG: Test NoUserID: Attempting to dial %s?%s", wsURL, query.Encode())
-	// Attempt to connect
 	conn, resp, err := dialer.Dial(wsURL+"?"+query.Encode(), nil)
 
-	// We expect the *upgrade* itself to fail because the handler returns an error
-	// *before* the upgrade happens. Gorilla's dialer might return an error,
-	// or the response status code will indicate failure.
 	require.Error(t, err, "Expected an error during dial due to failed upgrade")
-	if err != nil {
-		// Check for the specific "bad handshake" error which gorilla/websocket returns
-		// when the server responds with a non-101 status code.
-		assert.Contains(t, err.Error(), "bad handshake", "Error should indicate bad handshake")
-		t.Logf("DEBUG: Test NoUserID: Received expected dial error: %v", err)
-	}
-	// The response object might still be non-nil even if err is not nil
-	require.NotNil(t, resp, "Response should not be nil even on dial error")
-	// The handler returns StatusUnauthorized *before* upgrading.
+	assert.Contains(t, err.Error(), "bad handshake", "Error should indicate bad handshake")
+	require.NotNil(t, resp, "Response should not be nil")
 	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode, "Expected Unauthorized status")
 	t.Logf("DEBUG: Test NoUserID: Received expected status code %d", resp.StatusCode)
 
-	// Connection should be nil if the dial failed
 	assert.Nil(t, conn, "Connection should be nil on failed dial")
 }

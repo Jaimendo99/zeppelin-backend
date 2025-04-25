@@ -41,8 +41,13 @@ type AssignmentRepo interface {
 	GetAssignmentsByStudent(userID string) ([]AssignmentWithCourse, error)
 	GetStudentsByCourse(courseID int) ([]AssignmentWithStudent, error)
 	GetCourseIDByQRCode(qrCode string) (int, error)
+	GetAssignmentsByStudentAndCourse(userID string, courseID int) (AssignmentWithCourse, error)
 }
 
 func (AssignmentDB) TableName() string {
+	return "assignment"
+}
+
+func (AssignmentWithCourse) TableName() string {
 	return "assignment"
 }
