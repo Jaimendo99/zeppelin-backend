@@ -74,12 +74,5 @@ jobs:
       - name: Trigger Coolify Preview Deployment via /deploy endpoint with 'pr' parameter
         run: |
           PR_NUMBER=${{ github.event.number }}
-          IMAGE_TAG="ghcr.io/jaimendo99/zeppelin-backend:pr-${PR_NUMBER}"
-          COOLIFY_BASE_URL="http://62.146.226.103:8000"
-          API_ENDPOINT="/api/v1/deploy"
-          RESOURCE_UUID="${{ secrets.RESOURCE_UUID }}"
-          COOLIFY_API_TOKEN="${{ secrets.COOLIFY_TOKEN }}"
-          curl -X GET \
-            "${COOLIFY_BASE_URL}${API_ENDPOINT}?uuid=${RESOURCE_UUID}&pr=${PR_NUMBER}&force=false" \
-            -H "Authorization: Bearer ${COOLIFY_API_TOKEN}" \
-            -v
+          Icurl -X GET "http://62.146.226.103:8000/api/v1/deploy?uuid=${{ secrets.RESOURCE_UUID }}&force=false&pr=$PR_NUMBER" \
+          -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}"
