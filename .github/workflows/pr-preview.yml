@@ -73,6 +73,5 @@ jobs:
     steps:
       - name: Trigger Coolify Preview Deployment via /deploy endpoint with 'pr' parameter
         run: |
-          PR_NUMBER=${{ github.event.number }}
-          Icurl -X GET "http://62.146.226.103:8000/api/v1/deploy?uuid=${{ secrets.RESOURCE_UUID }}&force=false&pr=$PR_NUMBER" \
+          PR_NUMBER=${{ github.event.number }} | echo $PR_NUMBER | xargs -I {} curl -X GET "http://62.146.226.103:8000/api/v1/deploy?uuid=${{ secrets.RESOURCE_UUID }}&force=false&pr={}" \
           -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}"
