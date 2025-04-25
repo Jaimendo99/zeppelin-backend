@@ -24,20 +24,18 @@ func init() {
 	if err := config.InitDb(config.GetConnectionString()); err != nil {
 		log.Fatalf("error connecting to database: %v", err)
 	}
-	/*
-		if err := config.InitMQ(config.GetMQConnectionString()); err != nil {
-			log.Fatalf("error connecting to message queue: %v", err)
-		}
+	if err := config.InitMQ(config.GetMQConnectionString()); err != nil {
+		log.Fatalf("error connecting to message queue: %v", err)
+	}
 
-		if err := config.InitFCM(config.GetFirebaseConn()); err != nil {
-			log.Fatalf("error connecting to firebase: %v", err)
-		}
+	if err := config.InitFCM(config.GetFirebaseConn()); err != nil {
+		log.Fatalf("error connecting to firebase: %v", err)
+	}
 
-		config.InitSmtp(config.GetSmtpPassword())
-		if err := config.CheckSmtpAuth(config.GetSmtpConfig()); err != nil {
-			log.Fatalf("error authenticating smtp: %v", err)
-		}
-	*/
+	config.InitSmtp(config.GetSmtpPassword())
+	if err := config.CheckSmtpAuth(config.GetSmtpConfig()); err != nil {
+		log.Fatalf("error authenticating smtp: %v", err)
+	}
 }
 
 func main() {
