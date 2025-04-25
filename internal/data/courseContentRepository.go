@@ -7,19 +7,78 @@ import (
 	"zeppelin/internal/domain"
 )
 
-// courseContentRepo unchanged
 type courseContentRepo struct {
-	db *gorm.DB
+	db          *gorm.DB
+	generateUID func() string
 }
 
-func NewCourseContentRepo(db *gorm.DB) domain.CourseContentRepo {
-	return &courseContentRepo{db: db}
+func NewCourseContentRepo(db *gorm.DB, generateUID func() string) domain.CourseContentRepo {
+	if generateUID == nil {
+		generateUID = controller.GenerateUID
+	}
+	return &courseContentRepo{
+		db:          db,
+		generateUID: generateUID,
+	}
 }
 
-// GetContentByCourse updated to fetch json_content
-func (r *courseContentRepo) GetContentByCourse(courseID int) ([]domain.CourseContentWithDetails, error) {
+// CreateVideo corregido
+func (r *courseContentRepo) CreateVideo(url, title, description string) (string, error) {
+	contentID := r.generateUID()
+	video := map[string]interface{}{
+		"content_id":  contentID,
+		"url":         url,
+		"title":       title,
+		"description": description,
+	}
+
+	if err := r.db.Table("video").Create(video).Error; err != nil {
+		return "", err // Devolver cadena vacía en caso de error
+	}
+	return contentID, nil
+}
+
+// CreateQuiz corregido
+func (r *courseContentRepo) CreateQuiz(title, description string, jsonContent json.RawMessage) (string, error) {
+	contentID := r.generateUID()
+	quiz := map[string]interface{}{
+		"content_id":   contentID,
+		"title":        title,
+		"description":  description,
+		"json_content": jsonContent,
+	}
+
+	if err := r.db.Table("quiz").Create(quiz).Error; err != nil {
+		return "", err // Devolver cadena vacía en caso de error
+	}
+	return contentID, nil
+}
+
+// CreateText corregido
+func (r *courseContentRepo) CreateText(title, url string, jsonContent json.RawMessage) (string, error) {
+	contentID := r.generateUID()
+	text := map[string]interface{}{
+		"content_id":   contentID,
+		"title":        title,
+		"url":          url,
+		"json_content": jsonContent,
+	}
+
+	if err := r.db.Table("text").Create(text).Error; err != nil {
+		return "", err // Devolver cadena vacía en caso de error
+	}
+	return contentID, nil
+}
+
+func (r *courseContentRepo) GetContentByCourse(courseID int, isActive bool) ([]domain.CourseContentWithDetails, error) {
 	var contents []domain.CourseContentDB
-	err := r.db.Where("course_id = ?", courseID).Order("module, section_index").Find(&contents).Error
+	// Filtramos según el valor de `isActive`
+	query := r.db.Where("course_id = ?", courseID)
+	if isActive {
+		query = query.Where("is_active = ?", true)
+	}
+
+	err := query.Order("module, section_index").Find(&contents).Error
 	if err != nil {
 		return nil, err
 	}
@@ -57,52 +116,6 @@ func (r *courseContentRepo) GetContentByCourse(courseID int) ([]domain.CourseCon
 	return result, nil
 }
 
-// CreateVideo unchanged
-func (r *courseContentRepo) CreateVideo(url, title, description string) (string, error) {
-	contentID := controller.GenerateUID()
-
-	video := map[string]interface{}{
-		"content_id":  contentID,
-		"url":         url,
-		"title":       title,
-		"description": description,
-	}
-
-	err := r.db.Table("video").Create(video).Error
-	return contentID, err
-}
-
-// CreateQuiz updated to include json_content
-func (r *courseContentRepo) CreateQuiz(title, description string, jsonContent json.RawMessage) (string, error) {
-	contentID := controller.GenerateUID()
-
-	quiz := map[string]interface{}{
-		"content_id":   contentID,
-		"title":        title,
-		"description":  description,
-		"json_content": jsonContent,
-	}
-
-	err := r.db.Table("quiz").Create(quiz).Error
-	return contentID, err
-}
-
-// CreateText updated to include json_content and url
-func (r *courseContentRepo) CreateText(title, url string, jsonContent json.RawMessage) (string, error) {
-	contentID := controller.GenerateUID()
-
-	text := map[string]interface{}{
-		"content_id":   contentID,
-		"title":        title,
-		"url":          url,
-		"json_content": jsonContent,
-	}
-
-	err := r.db.Table("text").Create(text).Error
-	return contentID, err
-}
-
-// AddVideoSection, AddQuizSection, AddTextSection unchanged
 func (r *courseContentRepo) AddVideoSection(courseID int, contentID string, module string, sectionIndex int, moduleIndex int) error {
 	newSection := domain.CourseContentDB{
 		CourseID:     courseID,
@@ -142,7 +155,6 @@ func (r *courseContentRepo) AddTextSection(courseID int, contentID string, modul
 	return r.db.Create(&newSection).Error
 }
 
-// New Update methods
 func (r *courseContentRepo) UpdateVideo(contentID, title, url, description string) error {
 	updates := map[string]interface{}{}
 	if title != "" {
@@ -156,7 +168,7 @@ func (r *courseContentRepo) UpdateVideo(contentID, title, url, description strin
 	}
 
 	if len(updates) == 0 {
-		return nil // Nothing to update
+		return nil
 	}
 
 	return r.db.Table("video").Where("content_id = ?", contentID).Updates(updates).Error
@@ -175,7 +187,7 @@ func (r *courseContentRepo) UpdateQuiz(contentID, title, description string, jso
 	}
 
 	if len(updates) == 0 {
-		return nil // Nothing to update
+		return nil
 	}
 
 	return r.db.Table("quiz").Where("content_id = ?", contentID).Updates(updates).Error
@@ -194,7 +206,7 @@ func (r *courseContentRepo) UpdateText(contentID, title, url string, jsonContent
 	}
 
 	if len(updates) == 0 {
-		return nil // Nothing to update
+		return nil
 	}
 
 	return r.db.Table("text").Where("content_id = ?", contentID).Updates(updates).Error
@@ -207,7 +219,6 @@ func (r *courseContentRepo) UpdateContentStatus(contentID string, isActive bool)
 }
 
 func (r *courseContentRepo) UpdateModuleTitle(courseContentID int, moduleTitle string) error {
-	// Actualizar el título del módulo
 	return r.db.Model(&domain.CourseContentDB{}).
 		Where("course_content_id = ?", courseContentID).
 		Update("module", moduleTitle).Error

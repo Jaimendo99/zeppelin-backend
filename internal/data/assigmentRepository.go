@@ -66,3 +66,16 @@ func (r *assignmentRepo) GetStudentsByCourse(courseID int) ([]domain.AssignmentW
         WHERE a.course_id = ?`, courseID).Scan(&assignments)
 	return assignments, result.Error
 }
+
+func (r *assignmentRepo) GetAssignmentsByStudentAndCourse(userID string, courseID int) (domain.AssignmentWithCourse, error) {
+	var assignment domain.AssignmentWithCourse
+	// Cambié "assignment_with_courses" por "assignment" en la consulta
+	err := r.db.Where("user_id = ? AND course_id = ?", userID, courseID).First(&assignment).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return domain.AssignmentWithCourse{}, nil // No se encontró asignación para este estudiante y curso
+		}
+		return domain.AssignmentWithCourse{}, err // Error general
+	}
+	return assignment, nil
+}

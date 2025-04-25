@@ -33,3 +33,12 @@ func (r *courseRepo) GetCoursesByStudent(studentID string) ([]domain.CourseDB, e
         WHERE e.student_id = ?`, studentID).Scan(&courses)
 	return courses, result.Error
 }
+
+func (r *courseRepo) GetCourseByTeacherAndCourseID(teacherID, courseID string) (domain.CourseDB, error) {
+	var course domain.CourseDB
+	err := r.db.Where("teacher_id = ? AND course_id = ?", teacherID, courseID).First(&course).Error
+	if err != nil {
+		return domain.CourseDB{}, err // Si no encontramos el curso, devuelve un error
+	}
+	return course, nil // Devuelve el curso si lo encontró
+}

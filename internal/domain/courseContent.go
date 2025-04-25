@@ -106,7 +106,7 @@ type CourseContentInput struct {
 }
 
 type CourseContentRepo interface {
-	GetContentByCourse(courseID int) ([]CourseContentWithDetails, error)
+	GetContentByCourse(courseID int, isActive bool) ([]CourseContentWithDetails, error)
 	CreateVideo(url, title, description string) (string, error)
 	CreateQuiz(title, description string, jsonContent json.RawMessage) (string, error)
 	CreateText(title, url string, jsonContent json.RawMessage) (string, error)

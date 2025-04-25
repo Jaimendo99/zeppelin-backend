@@ -145,6 +145,10 @@ func (cm *ConnectionManager) WebSocketHandler() echo.HandlerFunc {
 		if platform == "" {
 			platform = "unknown"
 		}
+		if platform != "web" && platform != "mobile" {
+			logger.Errorf("User: Invalid platform: %s", platform)
+			return c.String(http.StatusBadRequest, "Invalid platform")
+		}
 
 		userIDRaw := c.Get("user_id")
 		userID, ok := userIDRaw.(string)
@@ -152,6 +156,38 @@ func (cm *ConnectionManager) WebSocketHandler() echo.HandlerFunc {
 			logger.Errorf("Invalid user ID type or empty. Value: %v", userIDRaw)
 			return c.String(http.StatusUnauthorized, "Invalid user ID")
 		}
+
+		cm.mutex.Lock()
+		conns := cm.userConnections[userID]
+		webConnected := false
+		webCount := 0
+		mobileCount := 0
+		for _, uc := range conns {
+			if uc.Platform == "web" {
+				webConnected = true
+				webCount++
+			} else if uc.Platform == "mobile" {
+				mobileCount++
+			}
+		}
+
+		// Check connection limits
+		if platform == "web" && webCount > 0 {
+			cm.mutex.Unlock()
+			logger.Errorf("User %s: Web connection already exists", userID)
+			return c.String(http.StatusForbidden, "Only one web connection allowed")
+		}
+		if platform == "mobile" && mobileCount > 0 {
+			cm.mutex.Unlock()
+			logger.Errorf("User %s: Mobile connection already exists", userID)
+			return c.String(http.StatusForbidden, "Only one mobile connection allowed")
+		}
+		if platform == "mobile" && !webConnected {
+			cm.mutex.Unlock()
+			logger.Errorf("User %s: Mobile connection rejected, no web connection active", userID)
+			return c.String(http.StatusForbidden, "Web connection required first")
+		}
+		cm.mutex.Unlock()
 
 		conn, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
 		if err != nil {

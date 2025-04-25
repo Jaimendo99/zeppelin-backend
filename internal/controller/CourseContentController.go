@@ -9,18 +9,65 @@ import (
 )
 
 type CourseContentController struct {
-	Repo domain.CourseContentRepo
+	Repo          domain.CourseContentRepo
+	RepoCourse    domain.CourseRepo
+	RepoAssigment domain.AssignmentRepo
 }
 
-func (c *CourseContentController) GetCourseContent() echo.HandlerFunc {
+func (c *CourseContentController) GetCourseContentTeacher() echo.HandlerFunc {
 	return func(e echo.Context) error {
+		userID := e.Get("user_id").(string) // Este es el ID del profesor autenticado
 		courseID, err := strconv.Atoi(e.QueryParam("course_id"))
 		if err != nil {
 			return ReturnReadResponse(e, echo.NewHTTPError(http.StatusBadRequest, "course_id inválido"), nil)
 		}
 
-		data, err := c.Repo.GetContentByCourse(courseID)
-		return ReturnReadResponse(e, err, data)
+		// Verificar si el curso le pertenece al profesor
+		_, err = c.RepoCourse.GetCourseByTeacherAndCourseID(userID, strconv.Itoa(courseID))
+		if err != nil {
+			return ReturnReadResponse(e, echo.NewHTTPError(http.StatusForbidden, "Este curso no le pertenece al profesor"), nil)
+		}
+
+		// Para los profesores, no filtramos por IsActive (traemos todos los contenidos)
+		data, err := c.Repo.GetContentByCourse(courseID, false)
+		if err != nil {
+			return ReturnReadResponse(e, err, nil)
+		}
+
+		return ReturnReadResponse(e, nil, data)
+	}
+}
+
+func (c *CourseContentController) GetCourseContentForStudent() echo.HandlerFunc {
+	return func(e echo.Context) error {
+		// Obtener el rol del usuario y su ID desde el contexto
+		role := e.Get("user_role").(string)
+		userID := e.Get("user_id").(string)
+
+		// Verificar si el usuario es un estudiante
+		if role != "org:student" {
+			return ReturnWriteResponse(e, echo.NewHTTPError(http.StatusForbidden, "Solo los estudiantes pueden ver el contenido de los cursos"), nil)
+		}
+
+		// Obtener el `courseID` desde la consulta de la URL
+		courseID, err := strconv.Atoi(e.QueryParam("course_id"))
+		if err != nil {
+			return ReturnReadResponse(e, echo.NewHTTPError(http.StatusBadRequest, "course_id inválido"), nil)
+		}
+
+		// Verificar si el estudiante está asignado a este curso
+		_, err = c.RepoAssigment.GetAssignmentsByStudentAndCourse(userID, courseID)
+		if err != nil {
+			return ReturnReadResponse(e, echo.NewHTTPError(http.StatusForbidden, "Este estudiante no está asignado a este curso"), nil)
+		}
+
+		// Para los estudiantes, solo se traen los contenidos activos
+		data, err := c.Repo.GetContentByCourse(courseID, true)
+		if err != nil {
+			return ReturnReadResponse(e, err, nil)
+		}
+
+		return ReturnReadResponse(e, nil, data)
 	}
 }
 
