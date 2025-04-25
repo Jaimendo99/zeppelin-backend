@@ -80,6 +80,6 @@ jobs:
           RESOURCE_UUID="${{ secrets.RESOURCE_UUID }}"
           COOLIFY_API_TOKEN="${{ secrets.COOLIFY_TOKEN }}"
           curl -X GET \
-            "${COOLIFY_BASE_URL}${API_ENDPOINT}?uuid=${RESOURCE_UUID}&pr=${PR_NUMBER}&tag=${IMAGE_TAG}&force=false" \
+            "${COOLIFY_BASE_URL}${API_ENDPOINT}?uuid=${RESOURCE_UUID}&pr=${PR_NUMBER}&force=false" \
             -H "Authorization: Bearer ${COOLIFY_API_TOKEN}" \
             -v
