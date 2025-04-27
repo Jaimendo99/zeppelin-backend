@@ -166,7 +166,7 @@ func TestUserFcmTokenRepo_DeleteUserFcmTokenByToken(t *testing.T) {
 func TestUserFcmTokenRepo_UpdateDeviceInfo(t *testing.T) {
 	firebaseToken := "firebase_token_abc"
 	deviceInfo := "Updated Device Info"
-	expectedSql := quoteSql(`UPDATE "user_fcm_token" SET "device_info"=$1,"updated_at"=$2 WHERE firebase_token = $3`)
+	expectedSql := quoteSql(`UPDATE "user_fcm_token" SET "device_info"=$1 WHERE firebase_token = $2`)
 
 	t.Run("Success", func(t *testing.T) {
 		gormDb, mock := setupMockDb(t)
@@ -174,8 +174,8 @@ func TestUserFcmTokenRepo_UpdateDeviceInfo(t *testing.T) {
 
 		mock.ExpectBegin()
 		mock.ExpectExec(expectedSql).
-			WithArgs(deviceInfo, sqlmock.AnyArg(), firebaseToken).
-			WillReturnResult(sqlmock.NewResult(0, 1))
+			WithArgs(deviceInfo, firebaseToken).
+			WillReturnResult(sqlmock.NewResult(0, 1)) // 1 row affected
 		mock.ExpectCommit()
 
 		err := repo.UpdateDeviceInfo(firebaseToken, deviceInfo)
@@ -192,7 +192,7 @@ func TestUserFcmTokenRepo_UpdateDeviceInfo(t *testing.T) {
 
 		mock.ExpectBegin()
 		mock.ExpectExec(expectedSql).
-			WithArgs(deviceInfo, sqlmock.AnyArg(), firebaseToken).
+			WithArgs(deviceInfo, firebaseToken).
 			WillReturnError(dbErr)
 		mock.ExpectRollback()
 
@@ -208,7 +208,7 @@ func TestUserFcmTokenRepo_UpdateFirebaseToken(t *testing.T) {
 	userID := "user123"
 	deviceType := "MOBILE"
 	newFirebaseToken := "new_firebase_token_xyz"
-	expectedSql := quoteSql(`UPDATE "user_fcm_token" SET "firebase_token"=$1,"updated_at"=$2 WHERE user_id = $3 AND device_type = $4`)
+	expectedSql := quoteSql(`UPDATE "user_fcm_token" SET "firebase_token"=$1 WHERE user_id = $2 AND device_type = $3`)
 
 	t.Run("Success", func(t *testing.T) {
 		gormDb, mock := setupMockDb(t)
@@ -216,8 +216,8 @@ func TestUserFcmTokenRepo_UpdateFirebaseToken(t *testing.T) {
 
 		mock.ExpectBegin()
 		mock.ExpectExec(expectedSql).
-			WithArgs(newFirebaseToken, sqlmock.AnyArg(), userID, deviceType).
-			WillReturnResult(sqlmock.NewResult(0, 1))
+			WithArgs(newFirebaseToken, userID, deviceType).
+			WillReturnResult(sqlmock.NewResult(0, 1)) // 1 row affected
 		mock.ExpectCommit()
 
 		err := repo.UpdateFirebaseToken(userID, deviceType, newFirebaseToken)
@@ -234,7 +234,7 @@ func TestUserFcmTokenRepo_UpdateFirebaseToken(t *testing.T) {
 
 		mock.ExpectBegin()
 		mock.ExpectExec(expectedSql).
-			WithArgs(newFirebaseToken, sqlmock.AnyArg(), userID, deviceType).
+			WithArgs(newFirebaseToken, userID, deviceType).
 			WillReturnError(dbErr)
 		mock.ExpectRollback()
 
