@@ -53,7 +53,10 @@ func (cm *ConnectionManager) GetUserPlatforms(userID, courseId string) map[strin
 	cm.mutex.Lock()
 	defer cm.mutex.Unlock()
 	connKey := userID + ":" + courseId
-	platforms := make(map[string]int)
+	platforms := map[string]int{
+		"web":    0,
+		"mobile": 0,
+	}
 	if conns, exists := cm.userConnections[connKey]; exists {
 		for _, uc := range conns {
 			platforms[uc.Platform]++
@@ -73,12 +76,7 @@ func (cm *ConnectionManager) sendStatusUpdate(logger echo.Logger, userID, course
 	if len(conns) == 0 {
 		return
 	}
-
-	platforms := make(map[string]int)
-	for _, uc := range conns {
-		platforms[uc.Platform]++
-	}
-
+	platforms := cm.GetUserPlatforms(userID, courseId)
 	status := map[string]any{
 		"type":        "status_update",
 		"user_id":     userID,

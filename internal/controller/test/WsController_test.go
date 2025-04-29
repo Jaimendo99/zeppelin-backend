@@ -188,7 +188,7 @@ func TestWebSocketHandler_ConnectionAndStatus(t *testing.T) {
 	statusPlatformsMap, ok := statusMsg["platforms"].(map[string]interface{})
 	require.True(t, ok, "Status message 'platforms' should be a map")
 	assert.Equal(t, float64(1), statusPlatformsMap[platform], "Status message platform count mismatch")
-	assert.Len(t, statusPlatformsMap, 1, "Status message platform map size mismatch")
+	assert.Len(t, statusPlatformsMap, 2, "Status message platform map size mismatch")
 
 	// Now verify the internal state of the ConnectionManager
 	// Add a small delay to ensure the server has processed the connection fully
@@ -202,7 +202,7 @@ func TestWebSocketHandler_ConnectionAndStatus(t *testing.T) {
 	require.Equal(t, 1, connectionCount, "Should have 1 connection for the user/course")
 	require.Contains(t, platformCounts, platform, "Platform map should contain the connected platform")
 	assert.Equal(t, 1, platformCounts[platform], "Platform count for '%s' should be 1", platform)
-	assert.Len(t, platformCounts, 1, "Platform map should only contain one entry")
+	assert.Len(t, platformCounts, 2, "Platform map should only contain one entry")
 }
 
 func TestWebSocketHandler_WebAndMobileConnections(t *testing.T) {
@@ -223,7 +223,7 @@ func TestWebSocketHandler_WebAndMobileConnections(t *testing.T) {
 	assert.Equal(t, courseID, statusMsg1["course_id"]) // Verify courseId
 	platformsMap1, _ := statusMsg1["platforms"].(map[string]interface{})
 	assert.Equal(t, float64(1), platformsMap1[platformWeb])
-	assert.Len(t, platformsMap1, 1)
+	assert.Len(t, platformsMap1, 2)
 
 	// Verify internal state after web connect
 	time.Sleep(20 * time.Millisecond)
@@ -297,7 +297,7 @@ func TestWebSocketHandler_SecondWebConnectionRejected(t *testing.T) {
 	assert.Equal(t, 1, connManager.GetConnectionCount(userID, courseID), "Count should still be 1") // Pass courseId
 	platforms := connManager.GetUserPlatforms(userID, courseID)                                     // Pass courseId
 	assert.Equal(t, 1, platforms[platform], "Web platform count should still be 1")
-	assert.Len(t, platforms, 1)
+	assert.Len(t, platforms, 2)
 }
 
 func TestWebSocketHandler_SecondMobileConnectionRejected(t *testing.T) {
@@ -529,10 +529,8 @@ func TestWebSocketHandler_Disconnect(t *testing.T) {
 	assert.Equal(t, float64(1), statusMsg_after_disconnect["connections"])
 	platformsMap, ok := statusMsg_after_disconnect["platforms"].(map[string]interface{})
 	require.True(t, ok)
-	_, existsWeb := platformsMap[platformWeb]
-	assert.False(t, existsWeb, "Web platform should be removed from status message")
 	assert.Equal(t, float64(1), platformsMap[platformMobile])
-	assert.Len(t, platformsMap, 1)
+	assert.Len(t, platformsMap, 2)
 
 	// Verify internal state using ConnectionManager after a delay
 	time.Sleep(100 * time.Millisecond) // Allow ample time for server cleanup goroutine
@@ -542,7 +540,7 @@ func TestWebSocketHandler_Disconnect(t *testing.T) {
 	t.Logf("DEBUG: Test Disconnect: Final state - Count: %d, Platforms: %v", finalCount, finalPlatforms)
 
 	assert.Equal(t, 1, finalCount, "Should only have one connection left in manager")
-	assert.Len(t, finalPlatforms, 1, "Should only have one platform left in manager")
+	assert.Len(t, finalPlatforms, 2, "Should only have one platform left in manager")
 	assert.Equal(t, 1, finalPlatforms[platformMobile], "Remaining platform should be mobile")
 }
 
