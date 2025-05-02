@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 	"zeppelin/internal/controller"
 	"zeppelin/internal/domain"
 )
@@ -88,12 +89,25 @@ func TestCreateUserFcmToken_Success(t *testing.T) {
 		assert.JSONEq(t, expected, rec.Body.String())
 	}
 }
-
 func TestGetUserFcmTokens_Success(t *testing.T) {
 	testUserID := "user-456"
 	mockTokens := []domain.UserFcmTokenDb{
-		{TokenID: 1, UserID: testUserID, FirebaseToken: "token1", DeviceType: "MOBILE"},
-		{TokenID: 2, UserID: testUserID, FirebaseToken: "token2", DeviceType: "WEB"},
+		{
+			TokenID:       1,
+			UserID:        testUserID,
+			FirebaseToken: "token1",
+			DeviceType:    "MOBILE",
+			DeviceInfo:    "",
+			UpdatedAt:     time.Time{}, // explicit zero value
+		},
+		{
+			TokenID:       2,
+			UserID:        testUserID,
+			FirebaseToken: "token2",
+			DeviceType:    "WEB",
+			DeviceInfo:    "",
+			UpdatedAt:     time.Time{},
+		},
 	}
 
 	e := echo.New()
@@ -116,8 +130,22 @@ func TestGetUserFcmTokens_Success(t *testing.T) {
 	if assert.NoError(t, err) {
 		assert.Equal(t, http.StatusOK, rec.Code)
 		expectedJSON := `[
-			{"token_id":1,"user_id":"user-456","firebase_token":"token1","device_type":"MOBILE","device_info":"","updated_at":""},
-			{"token_id":2,"user_id":"user-456","firebase_token":"token2","device_type":"WEB","device_info":"","updated_at":""}
+			{
+				"token_id": 1,
+				"user_id": "user-456",
+				"firebase_token": "token1",
+				"device_type": "MOBILE",
+				"device_info": "",
+				"updated_at": "0001-01-01T00:00:00Z"
+			},
+			{
+				"token_id": 2,
+				"user_id": "user-456",
+				"firebase_token": "token2",
+				"device_type": "WEB",
+				"device_info": "",
+				"updated_at": "0001-01-01T00:00:00Z"
+			}
 		]`
 		assert.JSONEq(t, expectedJSON, rec.Body.String())
 	}
