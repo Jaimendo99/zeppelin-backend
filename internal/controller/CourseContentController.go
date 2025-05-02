@@ -23,7 +23,7 @@ func (c *CourseContentController) GetCourseContentTeacher() echo.HandlerFunc {
 		}
 
 		// Verificar si el curso le pertenece al profesor
-		_, err = c.RepoCourse.GetCourseByTeacherAndCourseID(userID, strconv.Itoa(courseID))
+		_, err = c.RepoCourse.GetCourseByTeacherAndCourseID(userID, courseID)
 		if err != nil {
 			return ReturnReadResponse(e, echo.NewHTTPError(http.StatusForbidden, "Este curso no le pertenece al profesor"), nil)
 		}
@@ -104,7 +104,7 @@ func (c *CourseContentController) AddQuizSection() echo.HandlerFunc {
 			return err
 		}
 
-		contentID, err := c.Repo.CreateQuiz(input.Title, input.Description, nil) // json_content optional on create
+		contentID, err := c.Repo.CreateQuiz(input.Title, input.Url, input.Description, nil) // json_content optional on create
 		if err != nil {
 			return ReturnWriteResponse(e, err, nil)
 		}
@@ -155,7 +155,7 @@ func (c *CourseContentController) UpdateQuizContent() echo.HandlerFunc {
 			return err
 		}
 
-		err := c.Repo.UpdateQuiz(input.ContentID, input.Title, input.Description, input.JsonContent)
+		err := c.Repo.UpdateQuiz(input.ContentID, input.Title, input.Url, input.Description, input.JsonContent)
 		return ReturnWriteResponse(e, err, map[string]string{"message": "Quiz actualizado"})
 	}
 }

@@ -18,10 +18,10 @@ type MockCourseRepo struct {
 	CreateC                        func(course domain.CourseDB) error
 	GetCoursesByT                  func(teacherID string) ([]domain.CourseDB, error)
 	GetCoursesByS                  func(studentID string) ([]domain.CourseDB, error)
-	GetCourseByTeacherAndCourseIDT func(teacherID, courseID string) (domain.CourseDB, error)
+	GetCourseByTeacherAndCourseIDT func(teacherID string, courseID int) (domain.CourseDB, error)
 }
 
-func (m MockCourseRepo) GetCourseByTeacherAndCourseID(teacherID, courseID string) (domain.CourseDB, error) {
+func (m MockCourseRepo) GetCourseByTeacherAndCourseID(teacherID string, courseID int) (domain.CourseDB, error) {
 	if m.GetCourseByTeacherAndCourseIDT != nil {
 		return m.GetCourseByTeacherAndCourseIDT(teacherID, courseID)
 	}

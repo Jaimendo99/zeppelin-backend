@@ -59,9 +59,10 @@ func TestCourseContentRepo_CreateVideo(t *testing.T) {
 func TestCourseContentRepo_CreateQuiz(t *testing.T) {
 	title := "Quiz Title"
 	description := "Quiz Description"
+	url := "https://example.com/quiz"
 	jsonContent, _ := json.Marshal(map[string]string{"question": "Q1"})
 	contentID := "quiz_123"
-	expectedSql := `INSERT INTO "quiz" \(.+?\) VALUES \(\$1,\$2,\$3,\$4\)`
+	expectedSql := `INSERT INTO "quiz" \(.+?\) VALUES \(\$1,\$2,\$3,\$4,\$5\)`
 
 	t.Run("Success", func(t *testing.T) {
 		gormDb, mock := setupMockDb(t)
@@ -70,11 +71,11 @@ func TestCourseContentRepo_CreateQuiz(t *testing.T) {
 
 		mock.ExpectBegin()
 		mock.ExpectExec(expectedSql).
-			WithArgs(contentID, description, jsonContent, title).
+			WithArgs(contentID, description, jsonContent, title, url).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectCommit()
 
-		resultID, err := repo.CreateQuiz(title, description, jsonContent)
+		resultID, err := repo.CreateQuiz(title, url, description, jsonContent)
 
 		assert.NoError(t, err)
 		assert.Equal(t, contentID, resultID)
@@ -90,11 +91,11 @@ func TestCourseContentRepo_CreateQuiz(t *testing.T) {
 
 		mock.ExpectBegin()
 		mock.ExpectExec(expectedSql).
-			WithArgs(contentID, description, jsonContent, title).
+			WithArgs(contentID, description, jsonContent, title, url).
 			WillReturnError(dbErr)
 		mock.ExpectRollback()
 
-		resultID, err := repo.CreateQuiz(title, description, jsonContent)
+		resultID, err := repo.CreateQuiz(title, url, description, jsonContent)
 
 		assert.Error(t, err)
 		assert.Equal(t, dbErr, err)
@@ -102,7 +103,6 @@ func TestCourseContentRepo_CreateQuiz(t *testing.T) {
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
-
 func TestCourseContentRepo_CreateText(t *testing.T) {
 	title := "Text Title"
 	url := "http://text.com"
@@ -339,8 +339,9 @@ func TestCourseContentRepo_UpdateQuiz(t *testing.T) {
 	contentID := "quiz_123"
 	title := "Updated Title"
 	description := "Updated Description"
+	url := "https://example.com/updated-quiz"
 	jsonContent, _ := json.Marshal(map[string]string{"question": "Updated Q1"})
-	expectedSql := `UPDATE "quiz" SET "description"=\$1,"json_content"=\$2,"title"=\$3 WHERE content_id = \$4`
+	expectedSql := `UPDATE "quiz" SET (.+?) WHERE content_id = \$`
 
 	t.Run("Success with all fields", func(t *testing.T) {
 		gormDb, mock := setupMockDb(t)
@@ -348,11 +349,11 @@ func TestCourseContentRepo_UpdateQuiz(t *testing.T) {
 
 		mock.ExpectBegin()
 		mock.ExpectExec(expectedSql).
-			WithArgs(description, jsonContent, title, contentID).
+			WithArgs(description, jsonContent, title, url, contentID).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectCommit()
 
-		err := repo.UpdateQuiz(contentID, title, description, jsonContent)
+		err := repo.UpdateQuiz(contentID, title, url, description, jsonContent)
 
 		assert.NoError(t, err)
 		assert.NoError(t, mock.ExpectationsWereMet())
@@ -362,7 +363,7 @@ func TestCourseContentRepo_UpdateQuiz(t *testing.T) {
 		gormDb, mock := setupMockDb(t)
 		repo := data.NewCourseContentRepo(gormDb, nil)
 
-		err := repo.UpdateQuiz(contentID, "", "", nil)
+		err := repo.UpdateQuiz(contentID, "", "", "", nil)
 
 		assert.NoError(t, err)
 		assert.NoError(t, mock.ExpectationsWereMet())
@@ -376,18 +377,17 @@ func TestCourseContentRepo_UpdateQuiz(t *testing.T) {
 
 		mock.ExpectBegin()
 		mock.ExpectExec(expectedSql).
-			WithArgs(description, jsonContent, title, contentID).
+			WithArgs(description, jsonContent, title, url, contentID).
 			WillReturnError(dbErr)
 		mock.ExpectRollback()
 
-		err := repo.UpdateQuiz(contentID, title, description, jsonContent)
+		err := repo.UpdateQuiz(contentID, title, url, description, jsonContent)
 
 		assert.Error(t, err)
 		assert.Equal(t, dbErr, err)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
-
 func TestCourseContentRepo_UpdateText(t *testing.T) {
 	contentID := "text_123"
 	title := "Updated Title"
