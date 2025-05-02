@@ -34,7 +34,7 @@ func (r *courseRepo) GetCoursesByStudent(studentID string) ([]domain.CourseDB, e
 	return courses, result.Error
 }
 
-func (r *courseRepo) GetCourseByTeacherAndCourseID(teacherID, courseID string) (domain.CourseDB, error) {
+func (r *courseRepo) GetCourseByTeacherAndCourseID(teacherID string, courseID int) (domain.CourseDB, error) {
 	var course domain.CourseDB
 	err := r.db.Where("teacher_id = ? AND course_id = ?", teacherID, courseID).First(&course).Error
 	if err != nil {

@@ -1,12 +1,14 @@
 package domain
 
+import "time"
+
 type UserFcmTokenDb struct {
-	TokenID       int    `json:"token_id" gorm:"primaryKey"`
-	UserID        string `json:"user_id" gorm:"not null"`
-	FirebaseToken string `json:"firebase_token" gorm:"not null"`
-	DeviceType    string `json:"device_type" gorm:"not null"` // WEB o MOBILE
-	DeviceInfo    string `json:"device_info"`
-	UpdatedAt     string `json:"updated_at"`
+	TokenID       int       `json:"token_id" gorm:"primaryKey"`
+	UserID        string    `json:"user_id" gorm:"not null"`
+	FirebaseToken string    `json:"firebase_token" gorm:"not null"`
+	DeviceType    string    `json:"device_type" gorm:"not null"` // WEB o MOBILE
+	DeviceInfo    string    `json:"device_info"`
+	UpdatedAt     time.Time `json:"updated_at" gorm:"default:CURRENT_TIMESTAMP"`
 }
 
 type UserFcmTokenDeleteInput struct {

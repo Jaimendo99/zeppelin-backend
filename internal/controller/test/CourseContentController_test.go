@@ -21,12 +21,12 @@ type MockCourseContentRepo struct {
 	GetContentByCourseF  func(courseID int, onlyActive bool) ([]domain.CourseContentWithDetails, error)
 	CreateVideoF         func(url, title, description string) (string, error)
 	AddVideoSectionF     func(courseID int, contentID, module string, sectionIndex, moduleIndex int) error
-	CreateQuizF          func(title, description string, jsonContent json.RawMessage) (string, error)
+	CreateQuizF          func(title, url, description string, jsonContent json.RawMessage) (string, error)
 	AddQuizSectionF      func(courseID int, contentID, module string, sectionIndex, moduleIndex int) error
 	CreateTextF          func(title, url string, jsonContent json.RawMessage) (string, error)
 	AddTextSectionF      func(courseID int, contentID, module string, sectionIndex, moduleIndex int) error
 	UpdateVideoF         func(contentID, title, url, description string) error
-	UpdateQuizF          func(contentID, title, description string, jsonContent json.RawMessage) error
+	UpdateQuizF          func(contentID, title, url, description string, jsonContent json.RawMessage) error
 	UpdateTextF          func(contentID, title, url string, jsonContent json.RawMessage) error
 	UpdateContentStatusF func(contentID string, isActive bool) error
 	UpdateModuleTitleF   func(courseContentID int, moduleTitle string) error
@@ -53,9 +53,9 @@ func (m MockCourseContentRepo) AddVideoSection(courseID int, contentID, module s
 	return errors.New("AddVideoSection not implemented")
 }
 
-func (m MockCourseContentRepo) CreateQuiz(title, description string, jsonContent json.RawMessage) (string, error) {
+func (m MockCourseContentRepo) CreateQuiz(title, url, description string, jsonContent json.RawMessage) (string, error) {
 	if m.CreateQuizF != nil {
-		return m.CreateQuizF(title, description, jsonContent)
+		return m.CreateQuizF(title, url, description, jsonContent)
 	}
 	return "", errors.New("CreateQuiz not implemented")
 }
@@ -88,9 +88,9 @@ func (m MockCourseContentRepo) UpdateVideo(contentID, title, url, description st
 	return errors.New("UpdateVideo not implemented")
 }
 
-func (m MockCourseContentRepo) UpdateQuiz(contentID, title, description string, jsonContent json.RawMessage) error {
+func (m MockCourseContentRepo) UpdateQuiz(contentID, title, url, description string, jsonContent json.RawMessage) error {
 	if m.UpdateQuizF != nil {
-		return m.UpdateQuizF(contentID, title, description, jsonContent)
+		return m.UpdateQuizF(contentID, title, url, description, jsonContent)
 	}
 	return errors.New("UpdateQuiz not implemented")
 }
@@ -177,9 +177,9 @@ func TestGetCourseContentTeacher_Success(t *testing.T) {
 	}
 
 	mockCourseRepo := MockCourseRepo{
-		GetCourseByTeacherAndCourseIDT: func(teacherID, courseID string) (domain.CourseDB, error) {
+		GetCourseByTeacherAndCourseIDT: func(teacherID string, courseID int) (domain.CourseDB, error) {
 			assert.Equal(t, "teacher-123", teacherID)
-			assert.Equal(t, "1", courseID)
+			assert.Equal(t, 1, courseID)
 			return domain.CourseDB{CourseID: 1}, nil
 		},
 	}
@@ -267,7 +267,7 @@ func TestGetCourseContentTeacher_CourseNotOwned(t *testing.T) {
 	c := setupContext(e, req, rec, "teacher-123", "")
 
 	mockCourseRepo := MockCourseRepo{
-		GetCourseByTeacherAndCourseIDT: func(teacherID, courseID string) (domain.CourseDB, error) {
+		GetCourseByTeacherAndCourseIDT: func(teacherID string, courseID int) (domain.CourseDB, error) {
 			return domain.CourseDB{}, errors.New("course not found") // Dispara error esperado
 		},
 	}
@@ -435,7 +435,7 @@ func TestAddVideoSection_ValidationError(t *testing.T) {
 }
 
 func TestAddQuizSection_Success(t *testing.T) {
-	quizJSON := `{"title":"Quiz 1","description":"Test","module":"Module 1","section_index":2,"module_index":1}`
+	quizJSON := `{"title":"Quiz 1","description":"Test","url":"https://example.com/quiz","module":"Module 1","section_index":2,"module_index":1}`
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodPost, "/content/quiz?course_id=1", strings.NewReader(quizJSON))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
@@ -444,8 +444,9 @@ func TestAddQuizSection_Success(t *testing.T) {
 	e.Validator = &CustomValidator{Validator: validator.New()}
 
 	mockRepo := MockCourseContentRepo{
-		CreateQuizF: func(title, description string, jsonContent json.RawMessage) (string, error) {
+		CreateQuizF: func(title, url, description string, jsonContent json.RawMessage) (string, error) {
 			assert.Equal(t, "Quiz 1", title)
+			assert.Equal(t, "https://example.com/quiz", url)
 			assert.Equal(t, "Test", description)
 			assert.Nil(t, jsonContent)
 			return "quiz-456", nil
@@ -470,9 +471,8 @@ func TestAddQuizSection_Success(t *testing.T) {
 		assert.JSONEq(t, expectedJSON, rec.Body.String())
 	}
 }
-
 func TestAddQuizSection_CreateQuizError(t *testing.T) {
-	quizJSON := `{"title":"Quiz 1","description":"Test","module":"Module 1","section_index":2,"module_index":1}`
+	quizJSON := `{"title":"Quiz 1","description":"Test","url":"https://example.com/quiz","module":"Module 1","section_index":2,"module_index":1}`
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodPost, "/content/quiz?course_id=1", strings.NewReader(quizJSON))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
@@ -482,7 +482,11 @@ func TestAddQuizSection_CreateQuizError(t *testing.T) {
 
 	repoErr := errors.New("failed to create quiz")
 	mockRepo := MockCourseContentRepo{
-		CreateQuizF: func(title, description string, jsonContent json.RawMessage) (string, error) {
+		CreateQuizF: func(title, url, description string, jsonContent json.RawMessage) (string, error) {
+			assert.Equal(t, "Quiz 1", title)
+			assert.Equal(t, "https://example.com/quiz", url)
+			assert.Equal(t, "Test", description)
+			assert.Nil(t, jsonContent)
 			return "", repoErr
 		},
 		AddQuizSectionF: func(courseID int, contentID, module string, sectionIndex, moduleIndex int) error {
@@ -501,7 +505,6 @@ func TestAddQuizSection_CreateQuizError(t *testing.T) {
 		assert.JSONEq(t, expectedJSON, rec.Body.String())
 	}
 }
-
 func TestAddTextSection_Success(t *testing.T) {
 	textJSON := `{"title":"Text 1","module":"Module 1","section_index":3,"module_index":2}`
 	e := echo.New()
@@ -628,7 +631,7 @@ func TestUpdateVideoContent_ValidationError(t *testing.T) {
 }
 
 func TestUpdateQuizContent_Success(t *testing.T) {
-	quizJSON := `{"content_id":"quiz-456","title":"Updated Quiz","description":"Updated Test","json_content":{"questions":[{"id":1,"text":"Q1"}]}}`
+	quizJSON := `{"content_id":"quiz-456","title":"Updated Quiz","description":"Updated Test","url":"https://example.com/updated-quiz","json_content":{"questions":[{"id":1,"text":"Q1"}]}}`
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodPut, "/content/quiz", strings.NewReader(quizJSON))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
@@ -640,9 +643,10 @@ func TestUpdateQuizContent_Success(t *testing.T) {
 	json.Unmarshal([]byte(`{"questions":[{"id":1,"text":"Q1"}]}`), &jsonContent)
 
 	mockRepo := MockCourseContentRepo{
-		UpdateQuizF: func(contentID, title, description string, jsonContentArg json.RawMessage) error {
+		UpdateQuizF: func(contentID, title, url, description string, jsonContentArg json.RawMessage) error {
 			assert.Equal(t, "quiz-456", contentID)
 			assert.Equal(t, "Updated Quiz", title)
+			assert.Equal(t, "https://example.com/updated-quiz", url)
 			assert.Equal(t, "Updated Test", description)
 			assert.JSONEq(t, string(jsonContent), string(jsonContentArg))
 			return nil
@@ -659,7 +663,6 @@ func TestUpdateQuizContent_Success(t *testing.T) {
 		assert.JSONEq(t, expectedJSON, rec.Body.String())
 	}
 }
-
 func TestUpdateTextContent_Success(t *testing.T) {
 	textJSON := `{"content_id":"text-789","title":"Updated Text","url":"https://example.com/text","json_content":{"content":"Updated content"}}`
 	e := echo.New()

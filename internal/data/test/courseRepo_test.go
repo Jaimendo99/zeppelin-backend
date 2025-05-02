@@ -5,6 +5,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 	"testing"
 	"zeppelin/internal/data"
 	"zeppelin/internal/domain"
@@ -208,6 +209,76 @@ func TestCourseRepo_GetCoursesByStudent(t *testing.T) {
 		assert.Error(t, err)
 		assert.Equal(t, dbErr, err) // Should pass now
 		assert.Nil(t, courses)      // Or assert empty slice
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestCourseRepo_GetCourseByTeacherAndCourseID(t *testing.T) {
+	teacherID := "teacher123"
+	courseID := 2
+
+	// CORREGIDO: No escapes innecesarios de $ o .
+	expectedSql := `SELECT \* FROM "course" WHERE teacher_id = \$1 AND course_id = \$2 ORDER BY "course"\."course_id" LIMIT \$3`
+	columns := []string{"course_id", "teacher_id", "start_date", "title", "description", "qr_code"}
+
+	t.Run("Success", func(t *testing.T) {
+		gormDb, mock := setupMockDb(t)
+		repo := data.NewCourseRepo(gormDb)
+
+		expectedCourse := domain.CourseDB{
+			CourseID:    courseID,
+			TeacherID:   teacherID,
+			StartDate:   "2025-01-10",
+			Title:       "Course 1",
+			Description: "Desc 1",
+			QRCode:      "qr1",
+		}
+
+		rows := sqlmock.NewRows(columns).
+			AddRow(expectedCourse.CourseID, expectedCourse.TeacherID, expectedCourse.StartDate, expectedCourse.Title, expectedCourse.Description, expectedCourse.QRCode)
+
+		mock.ExpectQuery(expectedSql).
+			WithArgs(teacherID, courseID, 1).
+			WillReturnRows(rows)
+
+		course, err := repo.GetCourseByTeacherAndCourseID(teacherID, courseID)
+
+		assert.NoError(t, err)
+		assert.Equal(t, expectedCourse, course)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("Not Found", func(t *testing.T) {
+		gormDb, mock := setupMockDb(t)
+		repo := data.NewCourseRepo(gormDb)
+
+		mock.ExpectQuery(expectedSql).
+			WithArgs(teacherID, courseID, 1).
+			WillReturnError(gorm.ErrRecordNotFound)
+
+		course, err := repo.GetCourseByTeacherAndCourseID(teacherID, courseID)
+
+		assert.Error(t, err)
+		assert.Equal(t, gorm.ErrRecordNotFound, err)
+		assert.Equal(t, domain.CourseDB{}, course)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("DB Error", func(t *testing.T) {
+		gormDb, mock := setupMockDb(t)
+		repo := data.NewCourseRepo(gormDb)
+
+		dbErr := errors.New("db select error")
+
+		mock.ExpectQuery(expectedSql).
+			WithArgs(teacherID, courseID, 1).
+			WillReturnError(dbErr)
+
+		course, err := repo.GetCourseByTeacherAndCourseID(teacherID, courseID)
+
+		assert.Error(t, err)
+		assert.Equal(t, dbErr, err)
+		assert.Equal(t, domain.CourseDB{}, course)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }

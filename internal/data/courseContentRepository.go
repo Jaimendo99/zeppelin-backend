@@ -39,13 +39,14 @@ func (r *courseContentRepo) CreateVideo(url, title, description string) (string,
 }
 
 // CreateQuiz corregido
-func (r *courseContentRepo) CreateQuiz(title, description string, jsonContent json.RawMessage) (string, error) {
+func (r *courseContentRepo) CreateQuiz(title, url, description string, jsonContent json.RawMessage) (string, error) {
 	contentID := r.generateUID()
 	quiz := map[string]interface{}{
 		"content_id":   contentID,
 		"title":        title,
 		"description":  description,
 		"json_content": jsonContent,
+		"url":          url,
 	}
 
 	if err := r.db.Table("quiz").Create(quiz).Error; err != nil {
@@ -174,10 +175,13 @@ func (r *courseContentRepo) UpdateVideo(contentID, title, url, description strin
 	return r.db.Table("video").Where("content_id = ?", contentID).Updates(updates).Error
 }
 
-func (r *courseContentRepo) UpdateQuiz(contentID, title, description string, jsonContent json.RawMessage) error {
+func (r *courseContentRepo) UpdateQuiz(contentID, title, url, description string, jsonContent json.RawMessage) error {
 	updates := map[string]interface{}{}
 	if title != "" {
 		updates["title"] = title
+	}
+	if url != "" {
+		updates["url"] = url
 	}
 	if description != "" {
 		updates["description"] = description

@@ -39,6 +39,7 @@ type QuizContent struct {
 	Title       string          `json:"title"`
 	Description string          `json:"description"`
 	JsonContent json.RawMessage `json:"json_content,omitempty"`
+	Url         string          `json:"url,omitempty" validate:"omitempty,url"`
 }
 
 type TextContent struct {
@@ -63,6 +64,7 @@ type AddQuizSectionInput struct {
 	Module       string `json:"module" validate:"required"`
 	SectionIndex int    `json:"section_index"`
 	ModuleIndex  int    `json:"module_index"`
+	Url          string `json:"url" validate:"required"`
 }
 
 type AddTextSectionInput struct {
@@ -84,6 +86,7 @@ type UpdateQuizContentInput struct {
 	Title       string          `json:"title,omitempty"`
 	Description string          `json:"description,omitempty"`
 	JsonContent json.RawMessage `json:"json_content,omitempty"`
+	Url         string          `json:"url,omitempty" validate:"omitempty,url"`
 }
 
 type UpdateTextContentInput struct {
@@ -108,13 +111,13 @@ type CourseContentInput struct {
 type CourseContentRepo interface {
 	GetContentByCourse(courseID int, isActive bool) ([]CourseContentWithDetails, error)
 	CreateVideo(url, title, description string) (string, error)
-	CreateQuiz(title, description string, jsonContent json.RawMessage) (string, error)
+	CreateQuiz(title, url, description string, jsonContent json.RawMessage) (string, error)
 	CreateText(title, url string, jsonContent json.RawMessage) (string, error)
 	AddVideoSection(courseID int, contentID, module string, sectionIndex, moduleIndex int) error
 	AddQuizSection(courseID int, contentID, module string, sectionIndex, moduleIndex int) error
 	AddTextSection(courseID int, contentID, module string, sectionIndex, moduleIndex int) error
 	UpdateVideo(contentID, title, url, description string) error
-	UpdateQuiz(contentID, title, description string, jsonContent json.RawMessage) error
+	UpdateQuiz(contentID, title, url string, description string, jsonContent json.RawMessage) error
 	UpdateText(contentID, title, url string, jsonContent json.RawMessage) error
 	UpdateContentStatus(contentID string, isActive bool) error
 	UpdateModuleTitle(courseContentID int, moduleTitle string) error

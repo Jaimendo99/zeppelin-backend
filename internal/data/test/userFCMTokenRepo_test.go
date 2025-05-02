@@ -3,6 +3,7 @@ package test_test
 import (
 	"errors"
 	"testing"
+	"time"
 	"zeppelin/internal/data"
 	"zeppelin/internal/domain"
 
@@ -11,26 +12,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Asumimos que setupMockDb y quoteSql ya existen en tu proyecto
-
 func TestUserFcmTokenRepo_CreateUserFcmToken(t *testing.T) {
+	now := time.Now()
+
 	token := domain.UserFcmTokenDb{
 		UserID:        "user123",
 		FirebaseToken: "firebase_token_abc",
 		DeviceType:    "MOBILE",
 		DeviceInfo:    "iPhone 14",
+		UpdatedAt:     now,
 	}
 
-	expectedSql := `INSERT INTO "user_fcm_token" ("user_id","firebase_token","device_type","device_info","updated_at") VALUES ($1,$2,$3,$4,$5) RETURNING "token_id"`
+	expectedSql := quoteSql(`INSERT INTO "user_fcm_token" ("user_id","firebase_token","device_type","device_info","updated_at") VALUES ($1,$2,$3,$4,$5) RETURNING "updated_at","token_id"`)
 
 	t.Run("Success", func(t *testing.T) {
 		gormDb, mock := setupMockDb(t)
 		repo := data.NewUserFcmTokenRepo(gormDb)
 
 		mock.ExpectBegin()
-		mock.ExpectQuery(quoteSql(expectedSql)).
-			WithArgs(token.UserID, token.FirebaseToken, token.DeviceType, token.DeviceInfo, sqlmock.AnyArg()).
-			WillReturnRows(sqlmock.NewRows([]string{"token_id"}).AddRow(1))
+		mock.ExpectQuery(expectedSql).
+			WithArgs(token.UserID, token.FirebaseToken, token.DeviceType, token.DeviceInfo, token.UpdatedAt).
+			WillReturnRows(sqlmock.NewRows([]string{"updated_at", "token_id"}).AddRow(now, 1))
 		mock.ExpectCommit()
 
 		err := repo.CreateUserFcmToken(token)
@@ -46,8 +48,8 @@ func TestUserFcmTokenRepo_CreateUserFcmToken(t *testing.T) {
 		dbErr := errors.New("db insert error")
 
 		mock.ExpectBegin()
-		mock.ExpectQuery(quoteSql(expectedSql)).
-			WithArgs(token.UserID, token.FirebaseToken, token.DeviceType, token.DeviceInfo, sqlmock.AnyArg()).
+		mock.ExpectQuery(expectedSql).
+			WithArgs(token.UserID, token.FirebaseToken, token.DeviceType, token.DeviceInfo, token.UpdatedAt).
 			WillReturnError(dbErr)
 		mock.ExpectRollback()
 
@@ -69,8 +71,8 @@ func TestUserFcmTokenRepo_GetUserFcmTokensByUserID(t *testing.T) {
 		repo := data.NewUserFcmTokenRepo(gormDb)
 
 		rows := sqlmock.NewRows(columns).
-			AddRow(1, userID, "token1", "MOBILE", "iPhone 14", "2025-04-27T10:00:00Z").
-			AddRow(2, userID, "token2", "WEB", "Chrome", "2025-04-27T11:00:00Z")
+			AddRow(1, userID, "token1", "MOBILE", "iPhone 14", time.Now()).
+			AddRow(2, userID, "token2", "WEB", "Chrome", time.Now())
 
 		mock.ExpectQuery(expectedSql).
 			WithArgs(userID).
@@ -90,7 +92,7 @@ func TestUserFcmTokenRepo_GetUserFcmTokensByUserID(t *testing.T) {
 		gormDb, mock := setupMockDb(t)
 		repo := data.NewUserFcmTokenRepo(gormDb)
 
-		rows := sqlmock.NewRows(columns) // Empty
+		rows := sqlmock.NewRows(columns)
 
 		mock.ExpectQuery(expectedSql).
 			WithArgs(userID).
@@ -134,7 +136,7 @@ func TestUserFcmTokenRepo_DeleteUserFcmTokenByToken(t *testing.T) {
 		mock.ExpectBegin()
 		mock.ExpectExec(expectedSql).
 			WithArgs(firebaseToken).
-			WillReturnResult(sqlmock.NewResult(0, 1)) // 1 row affected
+			WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectCommit()
 
 		err := repo.DeleteUserFcmTokenByToken(firebaseToken)
@@ -161,12 +163,28 @@ func TestUserFcmTokenRepo_DeleteUserFcmTokenByToken(t *testing.T) {
 		assert.Equal(t, dbErr, err)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
+
+	t.Run("No Rows Affected", func(t *testing.T) {
+		gormDb, mock := setupMockDb(t)
+		repo := data.NewUserFcmTokenRepo(gormDb)
+
+		mock.ExpectBegin()
+		mock.ExpectExec(expectedSql).
+			WithArgs(firebaseToken).
+			WillReturnResult(sqlmock.NewResult(0, 0))
+		mock.ExpectCommit()
+
+		err := repo.DeleteUserFcmTokenByToken(firebaseToken)
+
+		assert.NoError(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
 }
 
 func TestUserFcmTokenRepo_UpdateDeviceInfo(t *testing.T) {
 	firebaseToken := "firebase_token_abc"
 	deviceInfo := "Updated Device Info"
-	expectedSql := quoteSql(`UPDATE "user_fcm_token" SET "device_info"=$1 WHERE firebase_token = $2`)
+	expectedSql := quoteSql(`UPDATE "user_fcm_token" SET "device_info"=$1,"updated_at"=$2 WHERE firebase_token = $3`)
 
 	t.Run("Success", func(t *testing.T) {
 		gormDb, mock := setupMockDb(t)
@@ -174,8 +192,8 @@ func TestUserFcmTokenRepo_UpdateDeviceInfo(t *testing.T) {
 
 		mock.ExpectBegin()
 		mock.ExpectExec(expectedSql).
-			WithArgs(deviceInfo, firebaseToken).
-			WillReturnResult(sqlmock.NewResult(0, 1)) // 1 row affected
+			WithArgs(deviceInfo, sqlmock.AnyArg(), firebaseToken).
+			WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectCommit()
 
 		err := repo.UpdateDeviceInfo(firebaseToken, deviceInfo)
@@ -192,7 +210,7 @@ func TestUserFcmTokenRepo_UpdateDeviceInfo(t *testing.T) {
 
 		mock.ExpectBegin()
 		mock.ExpectExec(expectedSql).
-			WithArgs(deviceInfo, firebaseToken).
+			WithArgs(deviceInfo, sqlmock.AnyArg(), firebaseToken).
 			WillReturnError(dbErr)
 		mock.ExpectRollback()
 
@@ -200,6 +218,22 @@ func TestUserFcmTokenRepo_UpdateDeviceInfo(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Equal(t, dbErr, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("No Rows Updated", func(t *testing.T) {
+		gormDb, mock := setupMockDb(t)
+		repo := data.NewUserFcmTokenRepo(gormDb)
+
+		mock.ExpectBegin()
+		mock.ExpectExec(expectedSql).
+			WithArgs(deviceInfo, sqlmock.AnyArg(), firebaseToken).
+			WillReturnResult(sqlmock.NewResult(0, 0))
+		mock.ExpectCommit()
+
+		err := repo.UpdateDeviceInfo(firebaseToken, deviceInfo)
+
+		assert.NoError(t, err)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
@@ -208,7 +242,7 @@ func TestUserFcmTokenRepo_UpdateFirebaseToken(t *testing.T) {
 	userID := "user123"
 	deviceType := "MOBILE"
 	newFirebaseToken := "new_firebase_token_xyz"
-	expectedSql := quoteSql(`UPDATE "user_fcm_token" SET "firebase_token"=$1 WHERE user_id = $2 AND device_type = $3`)
+	expectedSql := quoteSql(`UPDATE "user_fcm_token" SET "firebase_token"=$1,"updated_at"=$2 WHERE user_id = $3 AND device_type = $4`)
 
 	t.Run("Success", func(t *testing.T) {
 		gormDb, mock := setupMockDb(t)
@@ -216,8 +250,8 @@ func TestUserFcmTokenRepo_UpdateFirebaseToken(t *testing.T) {
 
 		mock.ExpectBegin()
 		mock.ExpectExec(expectedSql).
-			WithArgs(newFirebaseToken, userID, deviceType).
-			WillReturnResult(sqlmock.NewResult(0, 1)) // 1 row affected
+			WithArgs(newFirebaseToken, sqlmock.AnyArg(), userID, deviceType).
+			WillReturnResult(sqlmock.NewResult(0, 1))
 		mock.ExpectCommit()
 
 		err := repo.UpdateFirebaseToken(userID, deviceType, newFirebaseToken)
@@ -234,7 +268,7 @@ func TestUserFcmTokenRepo_UpdateFirebaseToken(t *testing.T) {
 
 		mock.ExpectBegin()
 		mock.ExpectExec(expectedSql).
-			WithArgs(newFirebaseToken, userID, deviceType).
+			WithArgs(newFirebaseToken, sqlmock.AnyArg(), userID, deviceType).
 			WillReturnError(dbErr)
 		mock.ExpectRollback()
 
@@ -242,6 +276,22 @@ func TestUserFcmTokenRepo_UpdateFirebaseToken(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Equal(t, dbErr, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("No Rows Updated", func(t *testing.T) {
+		gormDb, mock := setupMockDb(t)
+		repo := data.NewUserFcmTokenRepo(gormDb)
+
+		mock.ExpectBegin()
+		mock.ExpectExec(expectedSql).
+			WithArgs(newFirebaseToken, sqlmock.AnyArg(), userID, deviceType).
+			WillReturnResult(sqlmock.NewResult(0, 0))
+		mock.ExpectCommit()
+
+		err := repo.UpdateFirebaseToken(userID, deviceType, newFirebaseToken)
+
+		assert.NoError(t, err)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
