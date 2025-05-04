@@ -2,6 +2,7 @@ package controller
 
 import (
 	"errors"
+	"fmt"
 	"github.com/google/uuid"
 	"net/http"
 	"reflect"
@@ -165,4 +166,15 @@ type CustomValidator struct {
 
 func (cv *CustomValidator) Validate(i interface{}) error {
 	return cv.Validator.Struct(i)
+}
+
+func ForceString(v interface{}) string {
+	switch val := v.(type) {
+	case string:
+		return val
+	case []byte:
+		return string(val)
+	default:
+		return fmt.Sprintf("%v", val)
+	}
 }

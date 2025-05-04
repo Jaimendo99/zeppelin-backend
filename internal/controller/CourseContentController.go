@@ -62,7 +62,7 @@ func (c *CourseContentController) GetCourseContentForStudent() echo.HandlerFunc 
 		}
 
 		// Para los estudiantes, solo se traen los contenidos activos
-		data, err := c.Repo.GetContentByCourse(courseID, true)
+		data, err := c.Repo.GetContentByCourseForStudent(courseID, true, userID)
 		if err != nil {
 			return ReturnReadResponse(e, err, nil)
 		}
@@ -197,5 +197,33 @@ func (c *CourseContentController) UpdateModuleTitle() echo.HandlerFunc {
 		}
 
 		return ReturnWriteResponse(e, nil, map[string]string{"message": "Título del módulo actualizado"})
+	}
+}
+
+func (c *CourseContentController) UpdateUserContentStatus(statusID int) echo.HandlerFunc {
+	return func(e echo.Context) error {
+		userID := e.Get("user_id").(string)
+
+		var input domain.UpdateUserContentStatusInput
+		if err := ValidateAndBind(e, &input); err != nil {
+			return err
+		}
+
+		err := c.Repo.UpdateUserContentStatus(userID, input.ContentID, statusID)
+		if err != nil {
+			return ReturnWriteResponse(e, err, nil)
+		}
+
+		var msg string
+		switch statusID {
+		case 2:
+			msg = "Contenido marcado como 'en progreso'"
+		case 3:
+			msg = "Contenido marcado como 'completado'"
+		default:
+			msg = "Estado actualizado"
+		}
+
+		return ReturnWriteResponse(e, nil, map[string]string{"message": msg})
 	}
 }

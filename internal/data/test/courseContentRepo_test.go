@@ -6,6 +6,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
 	"testing"
+	"time"
 	"zeppelin/internal/data"
 )
 
@@ -516,6 +517,75 @@ func TestCourseContentRepo_UpdateModuleTitle(t *testing.T) {
 		mock.ExpectRollback()
 
 		err := repo.UpdateModuleTitle(courseContentID, moduleTitle)
+
+		assert.Error(t, err)
+		assert.Equal(t, dbErr, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestCourseContentRepo_GetContentByCourseForStudent(t *testing.T) {
+	gormDb, mock := setupMockDb(t)
+	repo := data.NewCourseContentRepo(gormDb, nil)
+
+	courseID := 1
+	userID := "student_123"
+	createdAt := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	rows := sqlmock.NewRows([]string{
+		"course_content_id", "course_id", "module", "content_type", "content_id",
+		"section_index", "module_index", "is_active", "created_at", "status_id",
+	}).AddRow(
+		1, courseID, "Module 1", "video", "content_001",
+		0, 0, true, createdAt, 2,
+	)
+
+	mock.ExpectQuery(`SELECT cc\.\*, uc\.status_id FROM course_content cc LEFT JOIN user_content uc ON cc\.content_id = uc\.content_id AND uc\.user_id = \$1 WHERE cc\.course_id = \$2 AND cc\.is_active = \$3 ORDER BY cc\.module, cc\.section_index`).
+		WithArgs(userID, courseID, true).
+		WillReturnRows(rows)
+
+	content, err := repo.GetContentByCourseForStudent(courseID, true, userID)
+
+	assert.NoError(t, err)
+	assert.Len(t, content, 1)
+	assert.Equal(t, "content_001", content[0].ContentID)
+	assert.NotNil(t, content[0].StatusID)
+	assert.Equal(t, 2, *content[0].StatusID)
+	assert.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestCourseContentRepo_UpdateUserContentStatus(t *testing.T) {
+	gormDb, mock := setupMockDb(t)
+	repo := data.NewCourseContentRepo(gormDb, nil)
+
+	userID := "user_123"
+	contentID := "content_456"
+	statusID := 2
+	expectedSql := `UPDATE "user_content" SET "status_id"=\$1 WHERE user_id = \$2 AND content_id = \$3`
+
+	t.Run("Success", func(t *testing.T) {
+		mock.ExpectBegin()
+		mock.ExpectExec(expectedSql).
+			WithArgs(statusID, userID, contentID).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+		mock.ExpectCommit()
+
+		err := repo.UpdateUserContentStatus(userID, contentID, statusID)
+
+		assert.NoError(t, err)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("DB Error", func(t *testing.T) {
+		dbErr := errors.New("update failed")
+
+		mock.ExpectBegin()
+		mock.ExpectExec(expectedSql).
+			WithArgs(statusID, userID, contentID).
+			WillReturnError(dbErr)
+		mock.ExpectRollback()
+
+		err := repo.UpdateUserContentStatus(userID, contentID, statusID)
 
 		assert.Error(t, err)
 		assert.Equal(t, dbErr, err)

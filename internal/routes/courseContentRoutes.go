@@ -38,4 +38,7 @@ func DefineCourseContentRoutes(e *echo.Echo) {
 	e.PUT("/course-content/status", controller.UpdateContentStatus(), middleware.RoleMiddleware(authService, "org:teacher"))
 	e.PUT("/course-content/module-title", controller.UpdateModuleTitle(), middleware.RoleMiddleware(authService, "org:teacher"))
 
+	e.PUT("/course-content/in_progress", controller.UpdateUserContentStatus(2), middleware.RoleMiddleware(authService, "org:student"))
+	e.PUT("/course-content/completed", controller.UpdateUserContentStatus(3), middleware.RoleMiddleware(authService, "org:student"))
+
 }

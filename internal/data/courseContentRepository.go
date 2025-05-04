@@ -74,18 +74,19 @@ func (r *courseContentRepo) CreateText(title, url string, jsonContent json.RawMe
 func (r *courseContentRepo) GetContentByCourse(courseID int, isActive bool) ([]domain.CourseContentWithDetails, error) {
 	var contents []domain.CourseContentDB
 	// Filtramos según el valor de `isActive`
-	query := r.db.Where("course_id = ?", courseID)
+	query := r.db.Table("course_content").Where("course_id = ?", courseID)
 	if isActive {
 		query = query.Where("is_active = ?", true)
 	}
 
-	err := query.Order("module, section_index").Find(&contents).Error
+	err := query.Order("module, section_index").Scan(&contents).Error
 	if err != nil {
 		return nil, err
 	}
 
 	var result []domain.CourseContentWithDetails
 	for _, content := range contents {
+
 		contentWithDetails := domain.CourseContentWithDetails{
 			CourseContentDB: content,
 		}
@@ -117,6 +118,58 @@ func (r *courseContentRepo) GetContentByCourse(courseID int, isActive bool) ([]d
 	return result, nil
 }
 
+func (r *courseContentRepo) GetContentByCourseForStudent(courseID int, isActive bool, userID string) ([]domain.CourseContentWithDetails, error) {
+
+	var contents []domain.CourseContentWithStatus
+
+	// Base query
+	query := r.db.Table("course_content cc").Select("cc.*")
+	// Si es estudiante, hacemos join con user_content if userID != nil {
+	query = query.Select("cc.*, uc.status_id").
+		Joins("LEFT JOIN user_content uc ON cc.content_id = uc.content_id AND uc.user_id = ?", userID)
+
+	query = query.Where("cc.course_id = ?", courseID).Order("cc.module, cc.section_index")
+
+	if isActive {
+		query = query.Where("cc.is_active = ?", true)
+	}
+
+	if err := query.Scan(&contents).Error; err != nil {
+		return nil, err
+	}
+
+	// Mapear a la respuesta esperada
+	var result []domain.CourseContentWithDetails
+	for _, c := range contents {
+		contentWithDetails := domain.CourseContentWithDetails{
+			CourseContentDB: c.CourseContentDB,
+			StatusID:        c.StatusID, // Agregalo en tu struct si aún no existe
+		}
+
+		// Cargar detalles (video, quiz, text)
+		switch c.ContentType {
+		case "video":
+			var video domain.VideoContent
+			if err := r.db.Table("video").Where("content_id = ?", c.ContentID).First(&video).Error; err == nil {
+				contentWithDetails.Details = video
+			}
+		case "quiz":
+			var quiz domain.QuizContent
+			if err := r.db.Table("quiz").Where("content_id = ?", c.ContentID).First(&quiz).Error; err == nil {
+				contentWithDetails.Details = quiz
+			}
+		case "text":
+			var text domain.TextContent
+			if err := r.db.Table("text").Where("content_id = ?", c.ContentID).First(&text).Error; err == nil {
+				contentWithDetails.Details = text
+			}
+		}
+
+		result = append(result, contentWithDetails)
+	}
+
+	return result, nil
+}
 func (r *courseContentRepo) AddVideoSection(courseID int, contentID string, module string, sectionIndex int, moduleIndex int) error {
 	newSection := domain.CourseContentDB{
 		CourseID:     courseID,
@@ -226,4 +279,10 @@ func (r *courseContentRepo) UpdateModuleTitle(courseContentID int, moduleTitle s
 	return r.db.Model(&domain.CourseContentDB{}).
 		Where("course_content_id = ?", courseContentID).
 		Update("module", moduleTitle).Error
+}
+
+func (r *courseContentRepo) UpdateUserContentStatus(userID, contentID string, statusID int) error {
+	return r.db.Table("user_content").
+		Where("user_id = ? AND content_id = ?", userID, contentID).
+		Update("status_id", statusID).Error
 }

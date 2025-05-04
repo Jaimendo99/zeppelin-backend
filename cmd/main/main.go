@@ -72,6 +72,7 @@ func main() {
 	routes.DefineCourseContentRoutes(e)
 	routes.DefineAuthRoutes(e, auth.Clerk, roleMiddlewareProvider)
 	routes.DefineUserFcmTokenRoutes(e, auth, roleMiddlewareProvider)
+	routes.DefinePomodoroRoutes(e, auth, roleMiddlewareProvider)
 	defer func(MQConn config.AmqpConnection) {
 		err := MQConn.Close()
 		if err != nil {
