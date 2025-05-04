@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 	"zeppelin/internal/data"
+	"zeppelin/internal/domain"
 )
 
 func TestAssignmentRepo_CreateAssignment(t *testing.T) {
@@ -310,6 +311,76 @@ func TestAssignmentRepo_GetStudentsByCourse(t *testing.T) {
 		assert.Error(t, err)
 		assert.Equal(t, expectedErr, err)
 		assert.Nil(t, assignments)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+}
+
+func TestAssignmentRepo_GetAssignmentsByStudentAndCourse(t *testing.T) {
+	gormDb, mock := setupMockDb(t)
+	repo := data.NewAssignmentRepo(gormDb)
+
+	userID := "user-123"
+	courseID := 100
+
+	t.Run("Success", func(t *testing.T) {
+		expected := domain.AssignmentWithCourse{
+			AssignmentID: 1,
+			AssignedAt:   "2025-01-01T00:00:00Z",
+			IsActive:     true,
+			IsVerify:     false,
+			CourseID:     courseID,
+			TeacherID:    "teacher-1",
+			StartDate:    "2024-12-01T00:00:00Z",
+			Title:        "Go Basics",
+			Description:  "Intro to Go",
+			QRCode:       "qr-123",
+		}
+
+		rows := sqlmock.NewRows([]string{
+			"assignment_id", "assigned_at", "is_active", "is_verify",
+			"course_id", "teacher_id", "start_date", "title", "description", "qr_code",
+		}).AddRow(
+			expected.AssignmentID, expected.AssignedAt, expected.IsActive, expected.IsVerify,
+			expected.CourseID, expected.TeacherID, expected.StartDate, expected.Title, expected.Description, expected.QRCode,
+		)
+
+		mock.ExpectQuery(`SELECT \* FROM "assignment" WHERE user_id = \$1 AND course_id = \$2 ORDER BY "assignment"\."assignment_id" LIMIT \$3`).
+			WithArgs(userID, courseID, 1).
+			WillReturnRows(rows)
+
+		result, err := repo.GetAssignmentsByStudentAndCourse(userID, courseID)
+
+		assert.NoError(t, err)
+		assert.Equal(t, expected.AssignmentID, result.AssignmentID)
+		assert.Equal(t, expected.CourseID, result.CourseID)
+		assert.Equal(t, expected.Title, result.Title)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("Not Found", func(t *testing.T) {
+		mock.ExpectQuery(`SELECT \* FROM "assignment" WHERE user_id = \$1 AND course_id = \$2 ORDER BY "assignment"\."assignment_id" LIMIT \$3`).
+			WithArgs(userID, courseID, 1).
+			WillReturnError(gorm.ErrRecordNotFound)
+
+		result, err := repo.GetAssignmentsByStudentAndCourse(userID, courseID)
+
+		assert.NoError(t, err)
+		assert.Equal(t, domain.AssignmentWithCourse{}, result)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("DB Error", func(t *testing.T) {
+		dbErr := errors.New("db connection failed")
+
+		mock.ExpectQuery(`SELECT \* FROM "assignment" WHERE user_id = \$1 AND course_id = \$2 ORDER BY "assignment"\."assignment_id" LIMIT \$3`).
+			WithArgs(userID, courseID, 1).
+			WillReturnError(dbErr)
+
+		result, err := repo.GetAssignmentsByStudentAndCourse(userID, courseID)
+
+		assert.Error(t, err)
+		assert.Equal(t, dbErr, err)
+		assert.Equal(t, domain.AssignmentWithCourse{}, result)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }

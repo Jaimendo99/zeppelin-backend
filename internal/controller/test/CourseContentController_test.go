@@ -18,18 +18,20 @@ import (
 
 // MockCourseContentRepo mocks CourseContentRepo
 type MockCourseContentRepo struct {
-	GetContentByCourseF  func(courseID int, onlyActive bool) ([]domain.CourseContentWithDetails, error)
-	CreateVideoF         func(url, title, description string) (string, error)
-	AddVideoSectionF     func(courseID int, contentID, module string, sectionIndex, moduleIndex int) error
-	CreateQuizF          func(title, url, description string, jsonContent json.RawMessage) (string, error)
-	AddQuizSectionF      func(courseID int, contentID, module string, sectionIndex, moduleIndex int) error
-	CreateTextF          func(title, url string, jsonContent json.RawMessage) (string, error)
-	AddTextSectionF      func(courseID int, contentID, module string, sectionIndex, moduleIndex int) error
-	UpdateVideoF         func(contentID, title, url, description string) error
-	UpdateQuizF          func(contentID, title, url, description string, jsonContent json.RawMessage) error
-	UpdateTextF          func(contentID, title, url string, jsonContent json.RawMessage) error
-	UpdateContentStatusF func(contentID string, isActive bool) error
-	UpdateModuleTitleF   func(courseContentID int, moduleTitle string) error
+	GetContentByCourseF           func(courseID int, onlyActive bool) ([]domain.CourseContentWithDetails, error)
+	CreateVideoF                  func(url, title, description string) (string, error)
+	AddVideoSectionF              func(courseID int, contentID, module string, sectionIndex, moduleIndex int) error
+	CreateQuizF                   func(title, url, description string, jsonContent json.RawMessage) (string, error)
+	AddQuizSectionF               func(courseID int, contentID, module string, sectionIndex, moduleIndex int) error
+	CreateTextF                   func(title, url string, jsonContent json.RawMessage) (string, error)
+	AddTextSectionF               func(courseID int, contentID, module string, sectionIndex, moduleIndex int) error
+	UpdateVideoF                  func(contentID, title, url, description string) error
+	UpdateQuizF                   func(contentID, title, url, description string, jsonContent json.RawMessage) error
+	UpdateTextF                   func(contentID, title, url string, jsonContent json.RawMessage) error
+	UpdateContentStatusF          func(contentID string, isActive bool) error
+	UpdateModuleTitleF            func(courseContentID int, moduleTitle string) error
+	GetContentByCourseForStudentF func(courseID int, isActive bool, userID string) ([]domain.CourseContentWithDetails, error)
+	UpdateUserContentStatusF      func(userID, contentID string, statusID int) error
 }
 
 func (m MockCourseContentRepo) GetContentByCourse(courseID int, onlyActive bool) ([]domain.CourseContentWithDetails, error) {
@@ -123,6 +125,20 @@ func setupContext(e *echo.Echo, req *http.Request, rec *httptest.ResponseRecorde
 		c.Set("user_role", userRole)
 	}
 	return c
+}
+
+func (m MockCourseContentRepo) GetContentByCourseForStudent(courseID int, isActive bool, userID string) ([]domain.CourseContentWithDetails, error) {
+	if m.GetContentByCourseForStudentF != nil {
+		return m.GetContentByCourseForStudentF(courseID, isActive, userID)
+	}
+	return nil, errors.New("GetContentByCourseForStudent not implemented")
+}
+
+func (m MockCourseContentRepo) UpdateUserContentStatus(userID, contentID string, statusID int) error {
+	if m.UpdateUserContentStatusF != nil {
+		return m.UpdateUserContentStatusF(userID, contentID, statusID)
+	}
+	return errors.New("UpdateUserContentStatus not implemented")
 }
 
 // --- Tests para CourseContentController ---
@@ -341,6 +357,31 @@ func TestGetCourseContentForStudent_InvalidCourseID(t *testing.T) {
 
 type MockAssignmentRepos struct {
 	GetAssignmentsByStudentAndCourseF func(studentID string, courseID int) (domain.AssignmentWithCourse, error)
+}
+
+func (m *MockAssignmentRepos) CreateAssignment(userID string, courseID int) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockAssignmentRepos) VerifyAssignment(assignmentID int) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockAssignmentRepos) GetAssignmentsByStudent(userID string) ([]domain.AssignmentWithCourse, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockAssignmentRepos) GetStudentsByCourse(courseID int) ([]domain.AssignmentWithStudent, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockAssignmentRepos) GetCourseIDByQRCode(qrCode string) (int, error) {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (m *MockAssignmentRepos) GetAssignmentsByStudentAndCourse(studentID string, courseID int) (domain.AssignmentWithCourse, error) {
@@ -777,5 +818,176 @@ func TestUpdateModuleTitle_ValidationError(t *testing.T) {
 			assert.Equal(t, "This field is required", msgMap["coursecontentid"])
 			assert.Equal(t, "This field is required", msgMap["moduletitle"])
 		}
+	}
+}
+
+func TestGetCourseContentForStudent_Success(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/content/student?course_id=1", nil)
+	rec := httptest.NewRecorder()
+	c := setupContext(e, req, rec, "student-123", "org:student")
+
+	mockContent := []domain.CourseContentWithDetails{
+		{
+			CourseContentDB: domain.CourseContentDB{
+				CourseContentID: 1,
+				CourseID:        1,
+				ContentID:       "content-001",
+				ContentType:     "video",
+				Module:          "Module 1",
+				SectionIndex:    0,
+				ModuleIndex:     0,
+				IsActive:        true,
+				CreatedAt:       time.Now(),
+			},
+			Details:  nil,
+			StatusID: intPtr(2),
+		},
+	}
+
+	mockRepo := MockCourseContentRepo{
+		GetContentByCourseForStudentF: func(courseID int, onlyActive bool, userID string) ([]domain.CourseContentWithDetails, error) {
+			assert.Equal(t, 1, courseID)
+			assert.True(t, onlyActive)
+			assert.Equal(t, "student-123", userID)
+			return mockContent, nil
+		},
+	}
+
+	mockAssignment := &MockAssignmentRepos{
+		GetAssignmentsByStudentAndCourseF: func(studentID string, courseID int) (domain.AssignmentWithCourse, error) {
+			assert.Equal(t, "student-123", studentID)
+			assert.Equal(t, 1, courseID)
+			return domain.AssignmentWithCourse{}, nil
+		},
+	}
+
+	controller := controller.CourseContentController{
+		Repo:          mockRepo,
+		RepoAssigment: mockAssignment,
+	}
+
+	handler := controller.GetCourseContentForStudent()
+
+	err := handler(c)
+	if assert.NoError(t, err) {
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Contains(t, rec.Body.String(), `"status_id":2`)
+		assert.Contains(t, rec.Body.String(), `"content_id":"content-001"`)
+	}
+}
+
+func intPtr(i int) *int {
+	return &i
+}
+
+func TestUpdateUserContentStatusHandler(t *testing.T) {
+	e := echo.New()
+	e.Validator = &CustomValidator{Validator: validator.New()}
+
+	mockRepo := MockCourseContentRepo{
+		UpdateUserContentStatusF: func(userID, contentID string, statusID int) error {
+			assert.Equal(t, "student-123", userID)
+			assert.Equal(t, "content-001", contentID)
+			assert.True(t, statusID == 2 || statusID == 3)
+			return nil
+		},
+	}
+
+	controller := controller.CourseContentController{Repo: mockRepo}
+
+	cases := []struct {
+		path         string
+		expectedMsg  string
+		expectedCode int
+	}{
+		{"/in-progress", "Contenido marcado como 'en progreso'", http.StatusOK},
+		{"/completed", "Contenido marcado como 'completado'", http.StatusOK},
+	}
+
+	for _, tc := range cases {
+		t.Run(strings.Title(strings.TrimPrefix(tc.path, "/")), func(t *testing.T) {
+			body := `{"content_id":"content-001"}`
+			req := httptest.NewRequest(http.MethodPost, tc.path, strings.NewReader(body))
+			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+			rec := httptest.NewRecorder()
+
+			c := e.NewContext(req, rec)
+			c.Set("user_id", "student-123")
+
+			var handler echo.HandlerFunc
+			if tc.path == "/in-progress" {
+				handler = controller.UpdateUserContentStatus(2)
+			} else {
+				handler = controller.UpdateUserContentStatus(3)
+			}
+
+			err := handler(c)
+			if assert.NoError(t, err) {
+				assert.Equal(t, tc.expectedCode, rec.Code)
+
+				var responseBody map[string]interface{}
+				err := json.Unmarshal(rec.Body.Bytes(), &responseBody)
+				assert.NoError(t, err)
+
+				expected := map[string]interface{}{
+					"Body": map[string]interface{}{
+						"message": tc.expectedMsg,
+					},
+				}
+
+				assert.Equal(t, expected, responseBody)
+			}
+		})
+	}
+}
+
+func TestUpdateUserContentStatusHandler_ValidationError(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/course-content/in-progress", strings.NewReader(`{}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set("user_id", "student-001")
+	e.Validator = &CustomValidator{Validator: validator.New()}
+
+	controller := controller.CourseContentController{}
+	handler := controller.UpdateUserContentStatus(2)
+
+	err := handler(c)
+	if assert.Error(t, err) {
+		httpErr, ok := err.(*echo.HTTPError)
+		assert.True(t, ok)
+		assert.Equal(t, http.StatusBadRequest, httpErr.Code)
+
+		msgMap, ok := httpErr.Message.(map[string]string)
+		if assert.True(t, ok) {
+			assert.Equal(t, "This field is required", msgMap["contentid"])
+		}
+	}
+}
+
+func TestUpdateUserContentStatusHandler_ErrorFromRepo(t *testing.T) {
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/course-content/in-progress", strings.NewReader(`{"content_id": "abc123"}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set("user_id", "student-001")
+	e.Validator = &CustomValidator{Validator: validator.New()}
+
+	mockRepo := MockCourseContentRepo{
+		UpdateUserContentStatusF: func(userID, contentID string, statusID int) error {
+			return errors.New("failed to update status")
+		},
+	}
+
+	controller := controller.CourseContentController{Repo: mockRepo}
+	handler := controller.UpdateUserContentStatus(2)
+
+	err := handler(c)
+	if assert.NoError(t, err) {
+		assert.Equal(t, http.StatusInternalServerError, rec.Code)
+		assert.JSONEq(t, `{"message":"failed to update status"}`, rec.Body.String())
 	}
 }

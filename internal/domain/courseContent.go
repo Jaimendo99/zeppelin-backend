@@ -98,7 +98,8 @@ type UpdateTextContentInput struct {
 
 type CourseContentWithDetails struct {
 	CourseContentDB
-	Details interface{}
+	Details  interface{}
+	StatusID *int `json:"status_id,omitempty"`
 }
 
 type CourseContentInput struct {
@@ -108,8 +109,17 @@ type CourseContentInput struct {
 	ModuleIndex int    `json:"module_index,omitempty"`
 }
 
+type UpdateUserContentStatusInput struct {
+	ContentID string `json:"content_id" validate:"required"`
+}
+
+type CourseContentWithStatus struct {
+	CourseContentDB
+	StatusID *int `json:"status_id"` // nil si no existe o si es profesor
+}
 type CourseContentRepo interface {
 	GetContentByCourse(courseID int, isActive bool) ([]CourseContentWithDetails, error)
+	GetContentByCourseForStudent(courseID int, isActive bool, userID string) ([]CourseContentWithDetails, error)
 	CreateVideo(url, title, description string) (string, error)
 	CreateQuiz(title, url, description string, jsonContent json.RawMessage) (string, error)
 	CreateText(title, url string, jsonContent json.RawMessage) (string, error)
@@ -121,6 +131,7 @@ type CourseContentRepo interface {
 	UpdateText(contentID, title, url string, jsonContent json.RawMessage) error
 	UpdateContentStatus(contentID string, isActive bool) error
 	UpdateModuleTitle(courseContentID int, moduleTitle string) error
+	UpdateUserContentStatus(userID, contentID string, statusID int) error
 }
 
 func (CourseContentDB) TableName() string {
