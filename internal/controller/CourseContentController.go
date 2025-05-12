@@ -1,8 +1,11 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
+	"os"
 	"strconv"
+	"zeppelin/internal/config"
 	"zeppelin/internal/domain"
 
 	"github.com/labstack/echo/v4"
@@ -32,6 +35,59 @@ func (c *CourseContentController) GetCourseContentTeacher() echo.HandlerFunc {
 		data, err := c.Repo.GetContentByCourse(courseID, false)
 		if err != nil {
 			return ReturnReadResponse(e, err, nil)
+		}
+
+		// Generamos las URLs firmadas para los archivos de contenido
+		for i, content := range data {
+			switch content.ContentType {
+			case "quiz":
+				// Generar URL firmada para el quiz
+				quizContent := content.Details.(domain.QuizContent)
+				key := fmt.Sprintf("focused/%d/quiz/teacher/%s.json", courseID, quizContent.ContentID)
+				signedURL, err := config.GeneratePresignedURL("zeppelin", key)
+				if err != nil {
+					return ReturnReadResponse(e, echo.NewHTTPError(http.StatusInternalServerError, "error al generar URL firmada para quiz"), nil)
+				}
+
+				// Imprimir la URL firmada generada para el quiz
+				fmt.Println("URL firmada para el quiz:", signedURL)
+
+				// Asignar la URL firmada al contenido
+				quizContent.Url = signedURL
+				data[i].Details = quizContent
+
+			case "text":
+				// Generar URL firmada para el texto
+				textContent := content.Details.(domain.TextContent)
+				key := fmt.Sprintf("focused/%d/text/teacher/%s.json", courseID, textContent.ContentID)
+				signedURL, err := config.GeneratePresignedURL("zeppelin", key)
+				if err != nil {
+					return ReturnReadResponse(e, echo.NewHTTPError(http.StatusInternalServerError, "error al generar URL firmada para text"), nil)
+				}
+
+				// Imprimir la URL firmada generada para el texto
+				fmt.Println("URL firmada para el texto:", signedURL)
+
+				// Asignar la URL firmada al contenido
+				textContent.Url = signedURL
+				data[i].Details = textContent
+
+			case "video":
+				// Generar URL firmada para el video
+				videoContent := content.Details.(domain.VideoContent)
+				key := fmt.Sprintf("focused/%d/video/teacher/%s.json", courseID, videoContent.ContentID)
+				signedURL, err := config.GeneratePresignedURL("zeppelin", key)
+				if err != nil {
+					return ReturnReadResponse(e, echo.NewHTTPError(http.StatusInternalServerError, "error al generar URL firmada para video"), nil)
+				}
+
+				// Imprimir la URL firmada generada para el video
+				fmt.Println("URL firmada para el video:", signedURL)
+
+				// Asignar la URL firmada al contenido
+				videoContent.Url = signedURL
+				data[i].Details = videoContent
+			}
 		}
 
 		return ReturnReadResponse(e, nil, data)
@@ -65,6 +121,59 @@ func (c *CourseContentController) GetCourseContentForStudent() echo.HandlerFunc 
 		data, err := c.Repo.GetContentByCourseForStudent(courseID, true, userID)
 		if err != nil {
 			return ReturnReadResponse(e, err, nil)
+		}
+
+		// Generamos las URLs firmadas para los archivos de contenido
+		for i, content := range data {
+			switch content.ContentType {
+			case "quiz":
+				// Generar URL firmada para el quiz
+				quizContent := content.Details.(domain.QuizContent)
+				key := fmt.Sprintf("focused/%d/quiz/student/%s.json", courseID, quizContent.ContentID)
+				signedURL, err := config.GeneratePresignedURL("zeppelin", key)
+				if err != nil {
+					return ReturnReadResponse(e, echo.NewHTTPError(http.StatusInternalServerError, "error al generar URL firmada para quiz"), nil)
+				}
+
+				// Imprimir la URL firmada generada para el quiz
+				fmt.Println("URL firmada para el quiz:", signedURL)
+
+				// Asignar la URL firmada al contenido
+				quizContent.Url = signedURL
+				data[i].Details = quizContent
+
+			case "text":
+				// Generar URL firmada para el texto
+				textContent := content.Details.(domain.TextContent)
+				key := fmt.Sprintf("focused/%d/text/teacher/%s.json", courseID, textContent.ContentID)
+				signedURL, err := config.GeneratePresignedURL("zeppelin", key)
+				if err != nil {
+					return ReturnReadResponse(e, echo.NewHTTPError(http.StatusInternalServerError, "error al generar URL firmada para text"), nil)
+				}
+
+				// Imprimir la URL firmada generada para el texto
+				fmt.Println("URL firmada para el texto:", signedURL)
+
+				// Asignar la URL firmada al contenido
+				textContent.Url = signedURL
+				data[i].Details = textContent
+
+			case "video":
+				// Generar URL firmada para el video
+				videoContent := content.Details.(domain.VideoContent)
+				key := fmt.Sprintf("focused/%d/video/teacher/%s.json", courseID, videoContent.ContentID)
+				signedURL, err := config.GeneratePresignedURL("zeppelin", key)
+				if err != nil {
+					return ReturnReadResponse(e, echo.NewHTTPError(http.StatusInternalServerError, "error al generar URL firmada para video"), nil)
+				}
+
+				// Imprimir la URL firmada generada para el video
+				fmt.Println("URL firmada para el video:", signedURL)
+
+				// Asignar la URL firmada al contenido
+				videoContent.Url = signedURL
+				data[i].Details = videoContent
+			}
 		}
 
 		return ReturnReadResponse(e, nil, data)
@@ -152,11 +261,44 @@ func (c *CourseContentController) UpdateQuizContent() echo.HandlerFunc {
 	return func(e echo.Context) error {
 		var input domain.UpdateQuizContentInput
 		if err := ValidateAndBind(e, &input); err != nil {
-			return err
+			return ReturnWriteResponse(e, echo.NewHTTPError(http.StatusBadRequest, "datos inválidos"), nil)
 		}
 
-		err := c.Repo.UpdateQuiz(input.ContentID, input.Title, input.Url, input.Description, input.JsonContent)
-		return ReturnWriteResponse(e, err, map[string]string{"message": "Quiz actualizado"})
+		if input.CourseID == 0 {
+			return ReturnWriteResponse(e, echo.NewHTTPError(http.StatusBadRequest, "course_id inválido"), nil)
+		}
+
+		if input.ContentID == "" {
+			return ReturnWriteResponse(e, echo.NewHTTPError(http.StatusBadRequest, "content_id requerido"), nil)
+		}
+
+		// Si hay contenido JSON, subirlo a R2 y generar URL
+		if input.JsonContent != nil {
+			courseIDStr := strconv.Itoa(input.CourseID)
+
+			err := config.UploadTeacherQuiz(courseIDStr, input.ContentID, input.JsonContent)
+			if err != nil {
+				return ReturnWriteResponse(e, echo.NewHTTPError(http.StatusInternalServerError, "error al subir JSON a R2"), nil)
+			}
+
+			accountID := os.Getenv("R2_ACCOUNT_ID")
+			input.Url = fmt.Sprintf("https://%s.r2.cloudflarestorage.com/focused/%s/quiz/teacher/%s.json",
+				accountID, courseIDStr, input.ContentID)
+		}
+
+		// Actualizar en la base de datos
+		err := c.Repo.UpdateQuiz(
+			input.ContentID,
+			input.Title,
+			input.Url,
+			input.Description,
+			input.JsonContent,
+		)
+		if err != nil {
+			return ReturnWriteResponse(e, echo.NewHTTPError(http.StatusInternalServerError, "error al actualizar el quiz"), nil)
+		}
+
+		return ReturnWriteResponse(e, nil, map[string]string{"message": "Quiz actualizado"})
 	}
 }
 
@@ -164,11 +306,40 @@ func (c *CourseContentController) UpdateTextContent() echo.HandlerFunc {
 	return func(e echo.Context) error {
 		var input domain.UpdateTextContentInput
 		if err := ValidateAndBind(e, &input); err != nil {
-			return err
+			return ReturnWriteResponse(e, echo.NewHTTPError(http.StatusBadRequest, "datos inválidos"), nil)
 		}
 
+		if input.CourseID == 0 {
+			return ReturnWriteResponse(e, echo.NewHTTPError(http.StatusBadRequest, "course_id inválido"), nil)
+		}
+
+		if input.ContentID == "" {
+			return ReturnWriteResponse(e, echo.NewHTTPError(http.StatusBadRequest, "content_id requerido"), nil)
+		}
+
+		// Si hay contenido JSON, subirlo a R2 y generar URL
+		if input.JsonContent != nil {
+			courseIDStr := strconv.Itoa(input.CourseID)
+
+			// Subir el texto a R2
+			err := config.UploadTeacherText(courseIDStr, input.ContentID, input.JsonContent)
+			if err != nil {
+				return ReturnWriteResponse(e, echo.NewHTTPError(http.StatusInternalServerError, "error al subir JSON a R2"), nil)
+			}
+
+			// Generar la URL para el archivo subido
+			accountID := os.Getenv("R2_ACCOUNT_ID")
+			input.Url = fmt.Sprintf("https://%s.r2.cloudflarestorage.com/focused/%s/text/teacher/%s.json",
+				accountID, courseIDStr, input.ContentID)
+		}
+
+		// Actualizar en la base de datos
 		err := c.Repo.UpdateText(input.ContentID, input.Title, input.Url, input.JsonContent)
-		return ReturnWriteResponse(e, err, map[string]string{"message": "Texto actualizado"})
+		if err != nil {
+			return ReturnWriteResponse(e, echo.NewHTTPError(http.StatusInternalServerError, "error al actualizar el texto"), nil)
+		}
+
+		return ReturnWriteResponse(e, nil, map[string]string{"message": "Texto actualizado"})
 	}
 }
 

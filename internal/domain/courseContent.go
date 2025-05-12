@@ -10,7 +10,7 @@ type CourseContentDB struct {
 	CourseID        int       `json:"course_id" validate:"required"`
 	Module          string    `json:"module" validate:"required"`
 	ContentType     string    `json:"content_type" validate:"required,oneof=text video quiz"`
-	ContentID       string    `json:"content_id" validate:"required"`
+	ContentID       string    `json:"content_id" validate:"required" gorm:"column:content_id"`
 	SectionIndex    int       `json:"section_index"`
 	ModuleIndex     int       `json:"module_index"`
 	IsActive        bool      `json:"is_active" gorm:"default:true"`
@@ -50,7 +50,7 @@ type TextContent struct {
 }
 
 type AddVideoSectionInput struct {
-	Url          string `json:"url" validate:"required"`
+	Url          string `json:"url"`
 	Title        string `json:"title"`
 	Description  string `json:"description"`
 	Module       string `json:"module" validate:"required"`
@@ -64,7 +64,7 @@ type AddQuizSectionInput struct {
 	Module       string `json:"module" validate:"required"`
 	SectionIndex int    `json:"section_index"`
 	ModuleIndex  int    `json:"module_index"`
-	Url          string `json:"url" validate:"required"`
+	Url          string `json:"url"`
 }
 
 type AddTextSectionInput struct {
@@ -83,6 +83,7 @@ type UpdateVideoContentInput struct {
 
 type UpdateQuizContentInput struct {
 	ContentID   string          `json:"content_id" validate:"required"`
+	CourseID    int             `json:"course_id" validate:"required"`
 	Title       string          `json:"title,omitempty"`
 	Description string          `json:"description,omitempty"`
 	JsonContent json.RawMessage `json:"json_content,omitempty"`
@@ -91,6 +92,7 @@ type UpdateQuizContentInput struct {
 
 type UpdateTextContentInput struct {
 	ContentID   string          `json:"content_id" validate:"required"`
+	CourseID    int             `json:"course_id" validate:"required"`
 	Title       string          `json:"title,omitempty"`
 	JsonContent json.RawMessage `json:"json_content,omitempty"`
 	Url         string          `json:"url,omitempty" validate:"omitempty,url"`
