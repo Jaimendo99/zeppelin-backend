@@ -6,136 +6,93 @@ import (
 )
 
 type CourseContentDB struct {
-	CourseContentID int       `json:"course_content_id" gorm:"primaryKey"`
-	CourseID        int       `json:"course_id" validate:"required"`
-	Module          string    `json:"module" validate:"required"`
-	ContentType     string    `json:"content_type" validate:"required,oneof=text video quiz"`
-	ContentID       string    `json:"content_id" validate:"required" gorm:"column:content_id"`
-	SectionIndex    int       `json:"section_index"`
-	ModuleIndex     int       `json:"module_index"`
-	IsActive        bool      `json:"is_active" gorm:"default:true"`
-	CreatedAt       time.Time `json:"created_at"`
+	CourseContentID int       `json:"course_content_id" gorm:"column:course_content_id;primaryKey;autoIncrement"`
+	CourseID        int       `json:"course_id" gorm:"column:course_id" validate:"required"`
+	Module          string    `json:"module" gorm:"column:module" validate:"required,max=100"`
+	ModuleIndex     int       `json:"module_index" gorm:"column:module_index"`
+	IsActive        bool      `json:"is_active" gorm:"column:is_active;default:true"`
+	CreatedAt       time.Time `json:"created_at" gorm:"column:created_at;autoCreateTime"`
 }
 
-type UpdateModuleTitleInput struct {
-	CourseContentID int    `json:"course_content_id" validate:"required"`
-	ModuleTitle     string `json:"module_title" validate:"required"`
+func (CourseContentDB) TableName() string {
+	return "course_content"
 }
 
-type UpdateContentStatusInput struct {
-	ContentID string `json:"content_id" validate:"required"`
-	IsActive  bool   `json:"is_active"`
+type Content struct {
+	ContentID       string `json:"content_id" gorm:"column:content_id;primaryKey" validate:"required"`
+	CourseContentID int    `json:"course_content_id" gorm:"column:course_content_id" validate:"required"`
+	ContentTypeID   int    `json:"content_type_id" gorm:"column:content_type_id" validate:"required,oneof=1 2 3"`
+	Title           string `json:"title" gorm:"column:title" validate:"required,max=100"`
+	Url             string `json:"url" gorm:"column:url" validate:"omitempty,url"`
+	Description     string `json:"description" gorm:"column:description" validate:"omitempty"`
+	SectionIndex    int    `json:"section_index" gorm:"column:section_index" validate:"required"`
 }
 
-type VideoContent struct {
-	ContentID   string `json:"content_id" validate:"required"`
-	Url         string `json:"url" validate:"omitempty,url"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-}
-
-type QuizContent struct {
-	ContentID   string          `json:"content_id" validate:"required"`
-	Title       string          `json:"title"`
-	Description string          `json:"description"`
-	JsonContent json.RawMessage `json:"json_content,omitempty"`
-	Url         string          `json:"url,omitempty" validate:"omitempty,url"`
-}
-
-type TextContent struct {
-	ContentID   string          `json:"content_id" validate:"required"`
-	Title       string          `json:"title" validate:"required"`
-	JsonContent json.RawMessage `json:"json_content,omitempty"`
-	Url         string          `json:"url,omitempty" validate:"omitempty,url"`
-}
-
-type AddVideoSectionInput struct {
-	Url          string `json:"url"`
-	Title        string `json:"title"`
-	Description  string `json:"description"`
-	Module       string `json:"module" validate:"required"`
-	SectionIndex int    `json:"section_index"`
-	ModuleIndex  int    `json:"module_index"`
-}
-
-type AddQuizSectionInput struct {
-	Title        string `json:"title"`
-	Description  string `json:"description"`
-	Module       string `json:"module" validate:"required"`
-	SectionIndex int    `json:"section_index"`
-	ModuleIndex  int    `json:"module_index"`
-	Url          string `json:"url"`
-}
-
-type AddTextSectionInput struct {
-	Module       string `json:"module" validate:"required"`
-	Title        string `json:"title" validate:"required"`
-	SectionIndex int    `json:"section_index"`
-	ModuleIndex  int    `json:"module_index"`
-}
-
-type UpdateVideoContentInput struct {
-	ContentID   string `json:"content_id" validate:"required"`
-	Title       string `json:"title,omitempty"`
-	Url         string `json:"url,omitempty" validate:"omitempty,url"`
-	Description string `json:"description,omitempty"`
-}
-
-type UpdateQuizContentInput struct {
-	ContentID   string          `json:"content_id" validate:"required"`
-	CourseID    int             `json:"course_id" validate:"required"`
-	Title       string          `json:"title,omitempty"`
-	Description string          `json:"description,omitempty"`
-	JsonContent json.RawMessage `json:"json_content,omitempty"`
-	Url         string          `json:"url,omitempty" validate:"omitempty,url"`
-}
-
-type UpdateTextContentInput struct {
-	ContentID   string          `json:"content_id" validate:"required"`
-	CourseID    int             `json:"course_id" validate:"required"`
-	Title       string          `json:"title,omitempty"`
-	JsonContent json.RawMessage `json:"json_content,omitempty"`
-	Url         string          `json:"url,omitempty" validate:"omitempty,url"`
+func (Content) TableName() string {
+	return "content"
 }
 
 type CourseContentWithDetails struct {
 	CourseContentDB
-	Details  interface{}
-	StatusID *int `json:"status_id,omitempty"`
+	Details  []Content `json:"details"`
+	StatusID *int      `json:"status_id,omitempty"`
 }
 
-type CourseContentInput struct {
-	Module      string `json:"module" validate:"required"`
-	ContentType string `json:"content_type" validate:"required,oneof=text video quiz"`
-	ContentID   string `json:"content_id" validate:"required"`
-	ModuleIndex int    `json:"module_index,omitempty"`
+type AddModuleInput struct {
+	CourseID int    `json:"course_id" validate:"required"`
+	Module   string `json:"module" validate:"required,max=100"`
+}
+
+type AddSectionInput struct {
+	CourseContentID int    `json:"course_content_id" validate:"required"`
+	ContentTypeID   int    `json:"content_type_id" validate:"required,oneof=1 2 3"` // 1=video, 2=quiz, 3=text
+	Title           string `json:"title" validate:"required,max=100"`
+	Description     string `json:"description" validate:"omitempty"`
+}
+
+type UpdateContentInput struct {
+	ContentID   string          `json:"content_id" validate:"required"`
+	Title       string          `json:"title" validate:"max=100"`
+	Url         string          `json:"url" validate:"omitempty,url"`
+	Description string          `json:"description" validate:"omitempty"`
+	JsonData    json.RawMessage `json:"json_data" validate:"omitempty,json"`
+	VideoID     string          `json:"video_id" validate:"omitempty"`
+}
+
+type UpdateContentStatusInput struct {
+	CourseContentID int  `json:"course_content_id" validate:"required"`
+	IsActive        bool `json:"is_active"`
+}
+
+type UpdateModuleTitleInput struct {
+	CourseContentID int    `json:"course_content_id" validate:"required"`
+	ModuleTitle     string `json:"module_title" validate:"required,max=100"`
 }
 
 type UpdateUserContentStatusInput struct {
 	ContentID string `json:"content_id" validate:"required"`
 }
 
-type CourseContentWithStatus struct {
-	CourseContentDB
-	StatusID *int `json:"status_id"` // nil si no existe o si es profesor
-}
-type CourseContentRepo interface {
-	GetContentByCourse(courseID int, isActive bool) ([]CourseContentWithDetails, error)
-	GetContentByCourseForStudent(courseID int, isActive bool, userID string) ([]CourseContentWithDetails, error)
-	CreateVideo(url, title, description string) (string, error)
-	CreateQuiz(title, url, description string, jsonContent json.RawMessage) (string, error)
-	CreateText(title, url string, jsonContent json.RawMessage) (string, error)
-	AddVideoSection(courseID int, contentID, module string, sectionIndex, moduleIndex int) error
-	AddQuizSection(courseID int, contentID, module string, sectionIndex, moduleIndex int) error
-	AddTextSection(courseID int, contentID, module string, sectionIndex, moduleIndex int) error
-	UpdateVideo(contentID, title, url, description string) error
-	UpdateQuiz(contentID, title, url string, description string, jsonContent json.RawMessage) error
-	UpdateText(contentID, title, url string, jsonContent json.RawMessage) error
-	UpdateContentStatus(contentID string, isActive bool) error
-	UpdateModuleTitle(courseContentID int, moduleTitle string) error
-	UpdateUserContentStatus(userID, contentID string, statusID int) error
+type CourseContentInput struct {
+	Module      string `json:"module" validate:"required,max=100"`
+	ContentType string `json:"content_type" validate:"required,oneof=text video quiz"`
+	ModuleIndex int    `json:"module_index"`
 }
 
-func (CourseContentDB) TableName() string {
-	return "course_content"
+type CourseContentWithStatus struct {
+	CourseContentDB
+	StatusID *int `json:"status_id"`
+}
+
+type CourseContentRepo interface {
+	AddModule(courseID int, module string, userID string) (int, error)
+	VerifyModuleOwnership(courseContentID int, userID string) error
+	GetContentByCourse(courseID int, isActive bool) ([]CourseContentWithDetails, error)
+	GetContentByCourseForStudent(courseID int, isActive bool, userID string) ([]CourseContentWithDetails, error)
+	CreateContent(input AddSectionInput) (string, error)
+	AddSection(input AddSectionInput, userID string) (string, error)
+	UpdateContent(input UpdateContentInput) error
+	UpdateContentStatus(courseContentID int, isActive bool) error
+	UpdateModuleTitle(courseContentID int, moduleTitle string) error
+	UpdateUserContentStatus(userID, contentID string, statusID int) error
 }

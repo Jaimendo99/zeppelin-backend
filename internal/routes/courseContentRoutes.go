@@ -26,19 +26,18 @@ func DefineCourseContentRoutes(e *echo.Echo) {
 		return
 	}
 
+	// GET routes
 	e.GET("/course-content", controller.GetCourseContentTeacher(), middleware.RoleMiddleware(authService, "org:teacher"))
 	e.GET("/course-content/student", controller.GetCourseContentForStudent(), middleware.RoleMiddleware(authService, "org:student"))
-	e.POST("/course-content/section/video", controller.AddVideoSection(), middleware.RoleMiddleware(authService, "org:teacher"))
-	e.POST("/course-content/section/quiz", controller.AddQuizSection(), middleware.RoleMiddleware(authService, "org:teacher"))
-	e.POST("/course-content/section/text", controller.AddTextSection(), middleware.RoleMiddleware(authService, "org:teacher"))
 
-	e.PUT("/course-content/video", controller.UpdateVideoContent(), middleware.RoleMiddleware(authService, "org:teacher"))
-	e.PUT("/course-content/quiz", controller.UpdateQuizContent(), middleware.RoleMiddleware(authService, "org:teacher"))
-	e.PUT("/course-content/text", controller.UpdateTextContent(), middleware.RoleMiddleware(authService, "org:teacher"))
+	// POST routes
+	e.POST("/course-content/module", controller.AddModule(), middleware.RoleMiddleware(authService, "org:teacher"))
+	e.POST("/course-content/section", controller.AddSection(), middleware.RoleMiddleware(authService, "org:teacher"))
+
+	// PUT routes
+	e.PUT("/course-content", controller.UpdateContent(), middleware.RoleMiddleware(authService, "org:teacher"))
 	e.PUT("/course-content/status", controller.UpdateContentStatus(), middleware.RoleMiddleware(authService, "org:teacher"))
 	e.PUT("/course-content/module-title", controller.UpdateModuleTitle(), middleware.RoleMiddleware(authService, "org:teacher"))
-
 	e.PUT("/course-content/in_progress", controller.UpdateUserContentStatus(2), middleware.RoleMiddleware(authService, "org:student"))
 	e.PUT("/course-content/completed", controller.UpdateUserContentStatus(3), middleware.RoleMiddleware(authService, "org:student"))
-
 }
