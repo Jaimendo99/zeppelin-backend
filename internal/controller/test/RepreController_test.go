@@ -3,10 +3,6 @@ package controller_test
 import (
 	"encoding/json"
 	"errors"
-	"github.com/go-playground/validator/v10"
-	"github.com/labstack/echo/v4"
-	"github.com/stretchr/testify/assert"
-	"gorm.io/gorm"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,6 +10,11 @@ import (
 	"zeppelin/internal/controller"
 	"zeppelin/internal/domain"
 	"zeppelin/internal/services"
+
+	"github.com/go-playground/validator/v10"
+	"github.com/labstack/echo/v4"
+	"github.com/stretchr/testify/assert"
+	"gorm.io/gorm"
 )
 
 // --- Reusing Setup and Dummy Helpers ---
@@ -66,10 +67,13 @@ func TestRepresentativeController_CreateRepresentative(t *testing.T) {
 		assert.Error(t, err)
 		var httpErr *echo.HTTPError
 		ok := errors.As(err, &httpErr)
+		msgStruct, ok := httpErr.Message.(struct {
+			Message string `json:"message"`
+		})
 		assert.True(t, ok)
 		if ok {
 			assert.Equal(t, http.StatusBadRequest, httpErr.Code)
-			assert.Equal(t, "Invalid request body", httpErr.Message)
+			assert.Equal(t, "Invalid request body", msgStruct.Message)
 		}
 		assert.Empty(t, rec.Body.String())
 		mockRepo.AssertExpectations(t)
@@ -180,35 +184,18 @@ func TestRepresentativeController_GetRepresentative(t *testing.T) {
 		mockRepo.AssertExpectations(t)
 	})
 
-	t.Run("Failure_NotFound_NilNil", func(t *testing.T) {
-		// Test the case where repo returns (nil, nil) which ReturnReadResponse maps to 404 error
+	t.Run("NotFound_ReturnsEmptySlice", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/representatives/404", nil)
 		c, rec := setupTest(req)
 		c.SetParamNames("representative_id")
 		c.SetParamValues("404")
-
 		expectedID := 404
 		mockRepo.On("GetRepresentative", expectedID).Return(nil, nil).Once()
-
 		handler := representativeController.GetRepresentative()
-		err := handler(c) // Calls ReturnReadResponse with (nil, nil)
-
-		// --- Assertions should now pass with the corrected ReturnReadResponse ---
-		assert.Error(t, err) // Expect error because ReturnReadResponse returns HTTPError
-		var httpErr *echo.HTTPError
-		ok := errors.As(err, &httpErr)
-		assert.True(t, ok, "Expected error to be *echo.HTTPError")
-
-		if ok {
-			assert.Equal(t, http.StatusNotFound, httpErr.Code) // Expect 404
-			expectedMsgStruct := struct {
-				Message string `json:"message"`
-			}{Message: "Resource not found"} // Expect the specific message
-			assert.Equal(t, expectedMsgStruct, httpErr.Message)
-		}
-		assert.Empty(t, rec.Body.String())
-
-		assert.Empty(t, rec.Body.String(), "Response body should be empty")
+		err := handler(c)
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusOK, rec.Code)
+		assert.Equal(t, "[]\n", rec.Body.String()) // Echo adds a newline by default
 		mockRepo.AssertExpectations(t)
 	})
 
@@ -399,10 +386,14 @@ func TestRepresentativeController_UpdateRepresentative(t *testing.T) {
 		assert.Error(t, err) // Expect error from ValidateAndBind
 		var httpErr *echo.HTTPError
 		ok := errors.As(err, &httpErr)
+		expectedMsgStruct := struct {
+			Message string `json:"message"`
+		}{Message: "Invalid request body"}
+
 		assert.True(t, ok)
 		if ok {
 			assert.Equal(t, http.StatusBadRequest, httpErr.Code)
-			assert.Equal(t, "Invalid request body", httpErr.Message) // From dummy ValidateAndBind
+			assert.Equal(t, expectedMsgStruct, httpErr.Message) // From dummy ValidateAndBind
 		}
 		assert.Empty(t, rec.Body.String())
 		mockRepo.AssertExpectations(t) // Repo not called

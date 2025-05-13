@@ -3,13 +3,14 @@ package controller
 import (
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
 	"net/http"
 	"reflect"
 	"runtime"
 	"strconv"
 	"strings"
 	"zeppelin/internal/domain"
+
+	"github.com/google/uuid"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
@@ -48,7 +49,10 @@ func ReturnReadResponse(e echo.Context, err error, body any) error {
 			Message string `json:"message"`
 		}{Message: "Internal server error"})
 	}
-	if body == nil || (reflect.ValueOf(body).Kind() == reflect.Ptr && reflect.ValueOf(body).IsNil()) {
+	if reflect.ValueOf(body).IsNil() {
+		return e.JSON(http.StatusOK, []any{})
+	}
+	if reflect.ValueOf(body).Kind() == reflect.Ptr && reflect.ValueOf(body).IsNil() {
 		return echo.NewHTTPError(http.StatusNotFound, struct {
 			Message string `json:"message"`
 		}{Message: "Resource not found"})
@@ -130,10 +134,17 @@ func errorResponse(message string) ErrorResponse {
 
 func ValidateAndBind[T any](e echo.Context, input *T) error {
 	if err := e.Bind(input); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+		return echo.NewHTTPError(http.StatusBadRequest, struct {
+			Message string `json:"message"`
+		}{Message: "Invalid request body"})
 	}
 	if err := e.Validate(input); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, GetValidationFieldError(err))
+		return echo.NewHTTPError(http.StatusBadRequest, struct {
+			Message string            `json:"message"`
+			Body    map[string]string `json:"body"`
+		}{Message: "Error on body parameters",
+			Body: GetValidationFieldError(err),
+		})
 	}
 
 	return nil

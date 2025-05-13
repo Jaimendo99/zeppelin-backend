@@ -449,13 +449,13 @@ func TestAddVideoSection_InvalidCourseID(t *testing.T) {
 }
 
 func TestAddVideoSection_ValidationError(t *testing.T) {
-	videoJSON := `{"url":"","title":"Video 1","description":"Intro","module":"Module 1","section_index":1,"module_index":0}`
+	videoJSON := `{"url":"","title":"Video 1","description":"Intro","module":"","section_index":1,"module_index":0}`
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodPost, "/content/video?course_id=1", strings.NewReader(videoJSON))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	e.Validator = &CustomValidator{Validator: validator.New()}
+	e.Validator = &controller.CustomValidator{Validator: validator.New()}
 
 	controller := controller.CourseContentController{}
 	handler := controller.AddVideoSection()
@@ -467,11 +467,17 @@ func TestAddVideoSection_ValidationError(t *testing.T) {
 		assert.True(t, ok, "Debe retornar un *echo.HTTPError")
 		assert.Equal(t, http.StatusBadRequest, httpErr.Code)
 
-		// El mensaje es un mapa[string]string con errores de campo
-		msgMap, ok := httpErr.Message.(map[string]string)
-		if assert.True(t, ok, "Debe retornar un mapa de errores") {
-			assert.Equal(t, "This field is required", msgMap["url"])
+		expectedMessageStruct := struct {
+			Message string            `json:"message"`
+			Body    map[string]string `json:"body"`
+		}{
+			Message: "Error on body parameters",
+			Body: map[string]string{
+				"url":    "This field is required",
+				"module": "This field is required",
+			},
 		}
+		assert.Equal(t, expectedMessageStruct, httpErr.Message, "El mensaje debe contener los errores de validación esperados")
 	}
 }
 
@@ -664,9 +670,15 @@ func TestUpdateVideoContent_ValidationError(t *testing.T) {
 		assert.True(t, ok, "Debe retornar un *echo.HTTPError")
 		assert.Equal(t, http.StatusBadRequest, httpErr.Code)
 
-		msgMap, ok := httpErr.Message.(map[string]string)
-		if assert.True(t, ok, "Debe retornar un mapa de errores de validación") {
-			assert.Equal(t, "This field is required", msgMap["contentid"])
+		msgStruct, ok := httpErr.Message.(struct {
+			Message string            `json:"message"`
+			Body    map[string]string `json:"body"`
+		})
+
+		if assert.True(t, ok, "Debe retornar un struct con mensaje y mapa de errores") {
+			if assert.True(t, ok, "Debe retornar un mapa de errores de validación") {
+				assert.Equal(t, "This field is required", msgStruct.Body["contentid"])
+			}
 		}
 	}
 }
@@ -813,10 +825,13 @@ func TestUpdateModuleTitle_ValidationError(t *testing.T) {
 		assert.True(t, ok, "Debe retornar un *echo.HTTPError")
 		assert.Equal(t, http.StatusBadRequest, httpErr.Code)
 
-		msgMap, ok := httpErr.Message.(map[string]string)
+		msgStruct, ok := httpErr.Message.(struct {
+			Message string            `json:"message"`
+			Body    map[string]string `json:"body"`
+		})
 		if assert.True(t, ok, "Debe ser un mapa de errores de validación") {
-			assert.Equal(t, "This field is required", msgMap["coursecontentid"])
-			assert.Equal(t, "This field is required", msgMap["moduletitle"])
+			assert.Equal(t, "This field is required", msgStruct.Body["coursecontentid"])
+			assert.Equal(t, "This field is required", msgStruct.Body["moduletitle"])
 		}
 	}
 }
@@ -960,9 +975,13 @@ func TestUpdateUserContentStatusHandler_ValidationError(t *testing.T) {
 		assert.True(t, ok)
 		assert.Equal(t, http.StatusBadRequest, httpErr.Code)
 
-		msgMap, ok := httpErr.Message.(map[string]string)
+		msgStruct, ok := httpErr.Message.(struct {
+			Message string            `json:"message"`
+			Body    map[string]string `json:"body"`
+		})
+
 		if assert.True(t, ok) {
-			assert.Equal(t, "This field is required", msgMap["contentid"])
+			assert.Equal(t, "This field is required", msgStruct.Body["contentid"])
 		}
 	}
 }
