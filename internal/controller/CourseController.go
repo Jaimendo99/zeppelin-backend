@@ -55,20 +55,6 @@ func (c *CourseController) GetCoursesByTeacher() echo.HandlerFunc {
 	}
 }
 
-func (c *CourseController) GetCoursesByStudent() echo.HandlerFunc {
-	return func(e echo.Context) error {
-		role := e.Get("user_role").(string)
-		userID := e.Get("user_id").(string)
-
-		if role != "org:student" {
-			return ReturnReadResponse(e, echo.NewHTTPError(403, "Solo los estudiantes pueden ver sus cursos"), nil)
-		}
-
-		courses, err := c.Repo.GetCoursesByStudent(userID)
-		return ReturnReadResponse(e, err, courses)
-	}
-}
-
 func generateQRCode() string {
 	bytes := make([]byte, 5)
 	_, err := rand.Read(bytes)

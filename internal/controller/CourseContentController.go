@@ -30,7 +30,7 @@ func (c *CourseContentController) GetCourseContentTeacher() echo.HandlerFunc {
 			return ReturnReadResponse(e, echo.NewHTTPError(http.StatusForbidden, "Este curso no le pertenece al profesor"), nil)
 		}
 
-		data, err := c.Repo.GetContentByCourse(courseID, false)
+		data, err := c.Repo.GetContentByCourse(courseID)
 		if err != nil {
 			return ReturnReadResponse(e, err, nil)
 		}
@@ -46,9 +46,9 @@ func (c *CourseContentController) GetCourseContentTeacher() echo.HandlerFunc {
 				case 1: // Video
 					key = fmt.Sprintf("focused/%d/video/teacher/%s.json", courseID, detail.ContentID)
 				case 2: // Quiz
-					key = fmt.Sprintf("focused/%d/quiz/teacher/%s.json", courseID, detail.ContentID)
-				case 3: // Text
 					key = fmt.Sprintf("focused/%d/text/teacher/%s.json", courseID, detail.ContentID)
+				case 3: // Text
+					key = fmt.Sprintf("focused/%d/quiz/teacher/%s.json", courseID, detail.ContentID)
 				default:
 					continue
 				}
@@ -58,7 +58,11 @@ func (c *CourseContentController) GetCourseContentTeacher() echo.HandlerFunc {
 					return ReturnReadResponse(e, echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("error al generar URL firmada para content_type_id %d", detail.ContentTypeID)), nil)
 				}
 
-				data[i].Details[j].Url = signedURL
+				if detail.ContentTypeID == 1 {
+					data[i].Details[j].Url = detail.Url
+				} else {
+					data[i].Details[j].Url = signedURL
+				}
 			}
 		}
 
@@ -92,7 +96,7 @@ func (c *CourseContentController) GetCourseContentForStudent() echo.HandlerFunc 
 			return ReturnReadResponse(e, echo.NewHTTPError(http.StatusForbidden, "Este estudiante no está asignado a este curso"), nil)
 		}
 
-		data, err := c.Repo.GetContentByCourseForStudent(courseID, true, userID)
+		data, err := c.Repo.GetContentByCourseForStudent(courseID, userID)
 		if err != nil {
 			return ReturnReadResponse(e, err, nil)
 		}
@@ -105,12 +109,10 @@ func (c *CourseContentController) GetCourseContentForStudent() echo.HandlerFunc 
 
 				var key string
 				switch detail.ContentTypeID {
-				case 1: // Video
-					key = fmt.Sprintf("focused/%d/video/teacher/%s.json", courseID, detail.ContentID)
 				case 2: // Quiz
-					key = fmt.Sprintf("focused/%d/quiz/student/%s.json", courseID, detail.ContentID)
+					key = fmt.Sprintf("focused/%d/text/student/%s.json", courseID, detail.ContentID)
 				case 3: // Text
-					key = fmt.Sprintf("focused/%d/text/teacher/%s.json", courseID, detail.ContentID)
+					key = fmt.Sprintf("focused/%d/quiz/teacher/%s.json", courseID, detail.ContentID)
 				default:
 					continue
 				}
@@ -120,7 +122,12 @@ func (c *CourseContentController) GetCourseContentForStudent() echo.HandlerFunc 
 					return ReturnReadResponse(e, echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("error al generar URL firmada para content_type_id %d", detail.ContentTypeID)), nil)
 				}
 
-				data[i].Details[j].Url = signedURL
+				if detail.ContentTypeID == 1 {
+					data[i].Details[j].Url = detail.Url
+				} else {
+					data[i].Details[j].Url = signedURL
+				}
+
 			}
 		}
 
@@ -163,20 +170,6 @@ func (c *CourseContentController) AddSection() echo.HandlerFunc {
 			return ReturnWriteResponse(e, echo.NewHTTPError(http.StatusForbidden, err.Error()), nil)
 		}
 
-		//Comprueba el tipo de contenido segun input.ContentTypeID
-		var contentType int
-		switch input.ContentTypeID {
-		case 1:
-			contentType = 1
-		case 2:
-			contentType = 2
-		case 3:
-			contentType = 3
-		default:
-			return ReturnWriteResponse(e, echo.NewHTTPError(http.StatusBadRequest, "content_type_id inválido"), nil)
-
-		}
-
 		return ReturnWriteResponse(e, nil, map[string]interface{}{
 			"message":           "Sección agregada",
 			"content_id":        contentID,
@@ -197,7 +190,47 @@ func (c *CourseContentController) UpdateContent() echo.HandlerFunc {
 			return ReturnWriteResponse(e, echo.NewHTTPError(http.StatusBadRequest, "content_id requerido"), nil)
 		}
 
-		err := c.Repo.UpdateContent(input)
+		contentTypeID, err := c.Repo.GetContentTypeID(input.ContentID)
+		if err != nil {
+			return ReturnWriteResponse(e, echo.NewHTTPError(http.StatusInternalServerError, err.Error()), nil)
+		}
+
+		var unsignedURL string
+		// Verificar el tipo de contenido para subir a R2 si es necesario
+		switch contentTypeID {
+		case 2: // Texto
+			if input.JsonData != nil {
+				courseIDStr := strconv.Itoa(input.CourseID)
+				err = config.UploadTeacherText(courseIDStr, input.ContentID, input.JsonData)
+				if err != nil {
+					return ReturnWriteResponse(e, echo.NewHTTPError(http.StatusInternalServerError, "error al subir texto a R2"), nil)
+				}
+				// Generate unsigned URL for text
+				accountID := os.Getenv("R2_ACCOUNT_ID")
+				unsignedURL = fmt.Sprintf("https://%s.r2.cloudflarestorage.com/focused/%s/text/teacher/%s.json",
+					accountID, courseIDStr, input.ContentID)
+				input.Url = unsignedURL
+			}
+		case 3: // Quiz
+			if input.JsonData != nil {
+				courseIDStr := strconv.Itoa(input.CourseID)
+				err = config.UploadTeacherQuiz(courseIDStr, input.ContentID, input.JsonData)
+				if err != nil {
+					return ReturnWriteResponse(e, echo.NewHTTPError(http.StatusInternalServerError, "error al subir quiz a R2"), nil)
+				}
+				// Generate unsigned URL for quiz (teacher version)
+				accountID := os.Getenv("R2_ACCOUNT_ID")
+				unsignedURL = fmt.Sprintf("https://%s.r2.cloudflarestorage.com/focused/%s/quiz/teacher/%s.json",
+					accountID, courseIDStr, input.ContentID) // Fixed: use ContentID instead of CourseID
+				input.Url = unsignedURL
+			}
+		case 1:
+			input.Url = input.VideoID
+		default:
+			return ReturnWriteResponse(e, echo.NewHTTPError(http.StatusBadRequest, "content_type_id inválido"), nil)
+		}
+
+		err = c.Repo.UpdateContent(input)
 		if err != nil {
 			return ReturnWriteResponse(e, echo.NewHTTPError(http.StatusInternalServerError, "error al actualizar el contenido"), nil)
 		}
@@ -205,7 +238,6 @@ func (c *CourseContentController) UpdateContent() echo.HandlerFunc {
 		return ReturnWriteResponse(e, nil, map[string]string{"message": "Contenido actualizado"})
 	}
 }
-
 func (c *CourseContentController) UpdateContentStatus() echo.HandlerFunc {
 	return func(e echo.Context) error {
 		var input domain.UpdateContentStatusInput
@@ -213,7 +245,7 @@ func (c *CourseContentController) UpdateContentStatus() echo.HandlerFunc {
 			return err
 		}
 
-		err := c.Repo.UpdateContentStatus(input.CourseContentID, input.IsActive)
+		err := c.Repo.UpdateContentStatus(input.ContentID, input.IsActive)
 		return ReturnWriteResponse(e, err, map[string]string{"message": "Estado del contenido actualizado"})
 	}
 }

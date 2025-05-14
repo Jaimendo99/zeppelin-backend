@@ -22,9 +22,7 @@ func NewCourseContentRepo(db *gorm.DB, generateUID func() string) domain.CourseC
 	}
 }
 
-// AddModule
 func (r *courseContentRepo) AddModule(courseID int, module string, userID string) (int, error) {
-	// Verify course ownership
 	var course domain.CourseDB
 	err := r.db.Table("course").
 		Where("course_id = ? AND teacher_id = ?", courseID, userID).
@@ -48,7 +46,6 @@ func (r *courseContentRepo) AddModule(courseID int, module string, userID string
 		newModule := domain.CourseContentDB{
 			CourseID: courseID,
 			Module:   module,
-			IsActive: true,
 		}
 		if err := r.db.Create(&newModule).Error; err != nil {
 			return 0, err
@@ -114,141 +111,104 @@ func (r *courseContentRepo) AddSection(input domain.AddSectionInput, userID stri
 	return r.CreateContent(input)
 }
 
-// GetContentByCourse
-func (r *courseContentRepo) GetContentByCourse(courseID int, isActive bool) ([]domain.CourseContentWithDetails, error) {
+func (r *courseContentRepo) GetContentTypeID(contentID string) (int, error) {
+	var content domain.Content
+	err := r.db.Table("content").
+		Select("content_type_id").
+		Where("content_id = ?", contentID).
+		First(&content).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return 0, errors.New("content not found")
+		}
+		return 0, err
+	}
+	return content.ContentTypeID, nil
+}
+
+func (r *courseContentRepo) GetContentByCourse(courseID int) ([]domain.CourseContentWithDetails, error) {
 	var courseContents []domain.CourseContentDB
-	query := r.db.Table("course_content").
+
+	query := r.db.
 		Where("course_id = ?", courseID).
 		Order("module_index")
 
-	if err := query.Find(&courseContents).Error; err != nil {
+	err := query.Preload("Contents", func(db *gorm.DB) *gorm.DB {
+		return db.Order("section_index")
+	}).Find(&courseContents).Error
+
+	if err != nil {
 		return nil, err
 	}
 
 	var result []domain.CourseContentWithDetails
 	for _, cc := range courseContents {
-		var contents []struct {
-			domain.Content
-			ContentType string `json:"content_type"`
-		}
-		err := r.db.Table("content").
-			Select("content.*, content_type.name AS content_type").
-			Joins("LEFT JOIN content_type ON content.content_type_id = content_type.content_type_id").
-			Where("content.course_content_id = ?", cc.CourseContentID).
-			Order("content.section_index").
-			Find(&contents).Error
-		if err != nil {
-			return nil, err
-		}
-
-		contentDetails := make([]domain.Content, len(contents))
-		for i, c := range contents {
-			contentDetails[i] = c.Content
-		}
-
 		result = append(result, domain.CourseContentWithDetails{
 			CourseContentDB: cc,
-			Details:         contentDetails,
+			Details:         cc.Contents,
 		})
 	}
-
 	return result, nil
 }
 
-// GetContentByCourseForStudent
-func (r *courseContentRepo) GetContentByCourseForStudent(courseID int, isActive bool, userID string) ([]domain.CourseContentWithDetails, error) {
-	sqlQuery := `
-		SELECT 
-			cc.*, 
-			ct.name AS content_type,
-			uc.status_id, 
-			c.content_id, c.course_content_id, c.content_type_id, c.title, c.url, c.description, c.section_index
-		FROM 
-			course_content cc
-		LEFT JOIN content c ON cc.course_content_id = c.course_content_id
-		LEFT JOIN content_type ct ON c.content_type_id = ct.content_type_id
-		LEFT JOIN user_content uc ON c.content_id = uc.content_id AND uc.user_id = ?
-		WHERE 
-			cc.course_id = ? AND cc.is_active = ?
-		ORDER BY 
-			cc.module_index, c.section_index
-	`
+func (r *courseContentRepo) GetContentByCourseForStudent(courseID int, userID string) ([]domain.CourseContentWithStudentDetails, error) {
+	var courseContents []domain.CourseContentDB
 
-	var result []struct {
-		domain.CourseContentDB
-		ContentType     string `json:"content_type"`
-		StatusID        int    `json:"status_id"`
-		ContentID       string `json:"content_id"`
-		CourseContentID int    `json:"course_content_id"`
-		ContentTypeID   int    `json:"content_type_id"`
-		Title           string `json:"title"`
-		Url             string `json:"url"`
-		Description     string `json:"description"`
-		SectionIndex    int    `json:"section_index"`
-	}
+	query := r.db.
+		Where("course_id = ?", courseID).
+		Order("module_index")
 
-	err := r.db.Raw(sqlQuery, userID, courseID, isActive).Scan(&result).Error
+	err := query.Preload("Contents", func(db *gorm.DB) *gorm.DB {
+		return db.Where("is_active = ?", true).Order("section_index").Preload("UserContent", "user_id = ?", userID)
+	}).Find(&courseContents).Error
+
 	if err != nil {
 		return nil, err
 	}
 
-	// Group by course_content_id
-	contentsByModule := make(map[int][]struct {
-		ContentType string
-		Details     domain.Content
-		StatusID    *int
-	})
-	for _, r := range result {
-		content := domain.Content{
-			ContentID:       r.ContentID,
-			CourseContentID: r.CourseContentID,
-			ContentTypeID:   r.ContentTypeID,
-			Title:           r.Title,
-			Url:             r.Url,
-			Description:     r.Description,
-			SectionIndex:    r.SectionIndex,
-		}
-		contentsByModule[r.CourseContentID] = append(contentsByModule[r.CourseContentID], struct {
-			ContentType string
-			Details     domain.Content
-			StatusID    *int
-		}{
-			ContentType: r.ContentType,
-			Details:     content,
-			StatusID:    &r.StatusID,
-		})
-	}
-
-	var finalResult []domain.CourseContentWithDetails
-	var courseContents []domain.CourseContentDB
-	if err := r.db.Table("course_content").
-		Where("course_id = ? AND is_active = ?", courseID, isActive).
-		Order("module_index").
-		Find(&courseContents).Error; err != nil {
-		return nil, err
-	}
-
+	var finalResult []domain.CourseContentWithStudentDetails
 	for _, cc := range courseContents {
-		contents := contentsByModule[cc.CourseContentID]
-		details := make([]domain.Content, len(contents))
-		for i, c := range contents {
-			details[i] = c.Details
+		var details []domain.ContentWithStatus
+
+		for _, content := range cc.Contents {
+			if len(content.UserContent) == 0 {
+				continue
+			}
+
+			contentWithStatus := domain.ContentWithStatus{
+				ContentID:       content.ContentID,
+				CourseContentID: content.CourseContentID,
+				ContentTypeID:   content.ContentTypeID,
+				Title:           content.Title,
+				Url:             content.Url,
+				Description:     content.Description,
+				SectionIndex:    content.SectionIndex,
+				IsActive:        content.IsActive,
+			}
+
+			if len(content.UserContent) > 0 {
+				statusID := content.UserContent[0].StatusID
+				contentWithStatus.StatusID = &statusID
+			}
+
+			details = append(details, contentWithStatus)
 		}
-		var statusID *int
-		if len(contents) > 0 {
-			statusID = contents[0].StatusID
+
+		if len(details) > 0 {
+			finalResult = append(finalResult, domain.CourseContentWithStudentDetails{
+				CourseContentID: cc.CourseContentID,
+				CourseID:        cc.CourseID,
+				Module:          cc.Module,
+				ModuleIndex:     cc.ModuleIndex,
+				CreatedAt:       cc.CreatedAt,
+				Details:         details, // Only append if there are valid details
+			})
 		}
-		finalResult = append(finalResult, domain.CourseContentWithDetails{
-			CourseContentDB: cc,
-			Details:         details,
-			StatusID:        statusID,
-		})
 	}
 
 	return finalResult, nil
 }
 
-// UpdateContent
 func (r *courseContentRepo) UpdateContent(input domain.UpdateContentInput) error {
 	updates := map[string]interface{}{}
 	if input.Title != "" {
@@ -267,9 +227,9 @@ func (r *courseContentRepo) UpdateContent(input domain.UpdateContentInput) error
 }
 
 // UpdateContentStatus
-func (r *courseContentRepo) UpdateContentStatus(courseContentID int, isActive bool) error {
-	return r.db.Model(&domain.CourseContentDB{}).
-		Where("course_content_id = ?", courseContentID).
+func (r *courseContentRepo) UpdateContentStatus(contentID string, isActive bool) error {
+	return r.db.Model(&domain.Content{}).
+		Where("content_id = ?", contentID).
 		Update("is_active", isActive).Error
 }
 
