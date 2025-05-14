@@ -107,6 +107,8 @@ func ReturnWriteResponse(e echo.Context, err error, body any) error {
 			return e.JSON(http.StatusConflict, errorResponse("Duplicated key"))
 		case errors.Is(err, gorm.ErrInvalidData):
 			return e.JSON(http.StatusBadRequest, errorResponse("Invalid request"))
+		case errors.Is(err, gorm.ErrUnsupportedRelation):
+			return e.JSON(http.StatusInternalServerError, errorResponse("Realtion doesnt exist"))
 		case errors.Is(err, numError):
 			return e.JSON(http.StatusBadRequest, errorResponse("Invalid number format"))
 		case errors.Is(err, gorm.ErrRecordNotFound):

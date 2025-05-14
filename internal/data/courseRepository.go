@@ -25,6 +25,15 @@ func (r *courseRepo) GetCoursesByTeacher(teacherID string) ([]domain.CourseDB, e
 	return courses, result.Error
 }
 
+func (r *courseRepo) GetCoursesByStudent(studentID string) ([]domain.CourseDB, error) {
+	var courses []domain.CourseDB
+	result := r.db.Raw(`
+        SELECT c.* FROM course c
+        JOIN enrollments e ON c.course_id = e.course_id
+        WHERE e.student_id = ?`, studentID).Scan(&courses)
+	return courses, result.Error
+}
+
 func (r *courseRepo) GetCourseByTeacherAndCourseID(teacherID string, courseID int) (domain.CourseDB, error) {
 	var course domain.CourseDB
 	err := r.db.Where("teacher_id = ? AND course_id = ?", teacherID, courseID).First(&course).Error
