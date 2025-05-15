@@ -166,12 +166,15 @@ func TestCreateCourse_BadRequestInvalidJSON(t *testing.T) {
 
 	err := handler(c)
 
-	// ✅ Esperamos un error
+	expectedMsgStruct := struct {
+		Message string `json:"message"`
+	}{Message: "Invalid request body"}
+
 	if assert.Error(t, err) {
 		httpErr, ok := err.(*echo.HTTPError)
 		assert.True(t, ok, "Debe retornar un *echo.HTTPError")
 		assert.Equal(t, http.StatusBadRequest, httpErr.Code)
-		assert.Equal(t, "Invalid request body", httpErr.Message)
+		assert.Equal(t, expectedMsgStruct, httpErr.Message)
 	}
 }
 
@@ -196,15 +199,18 @@ func TestCreateCourse_BadRequestValidation(t *testing.T) {
 
 	err := handler(c)
 
-	// ✅ Verificamos que se retorna un error con validación específica
 	if assert.Error(t, err) {
 		httpErr, ok := err.(*echo.HTTPError)
 		assert.True(t, ok, "Debe retornar un *echo.HTTPError")
 		assert.Equal(t, http.StatusBadRequest, httpErr.Code)
 
-		msgMap, ok := httpErr.Message.(map[string]string)
+		msgMap, ok := httpErr.Message.(struct {
+			Message string            `json:"message"`
+			Body    map[string]string `json:"body"`
+		})
+
 		if assert.True(t, ok, "Debe retornar un mapa de errores de validación") {
-			assert.Equal(t, "This field is required", msgMap["title"])
+			assert.Equal(t, "This field is required", msgMap.Body["title"])
 		}
 	}
 }
