@@ -2,6 +2,7 @@ package data
 
 import (
 	"errors"
+	"fmt"
 	"gorm.io/gorm"
 	"zeppelin/internal/controller"
 	"zeppelin/internal/domain"
@@ -128,7 +129,9 @@ func (r *courseContentRepo) GetContentTypeID(contentID string) (int, error) {
 
 func (r *courseContentRepo) GetContentByCourse(courseID int) ([]domain.CourseContentWithDetails, error) {
 	var courseContents []domain.CourseContentDB
-
+	// Dentro de tu repositorio (en GetContentByCourse)
+	fmt.Printf("Conexión DB: %+v\n", r.db)
+	
 	query := r.db.
 		Where("course_id = ?", courseID).
 		Order("module_index")

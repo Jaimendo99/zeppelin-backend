@@ -15,9 +15,10 @@ func DefineCourseContentRoutes(e *echo.Echo) {
 	assignmentRepo := data.NewAssignmentRepo(config.DB)
 	courseRepo := data.NewCourseRepo(config.DB)
 	controller := controller.CourseContentController{
-		Repo:          repo,
-		RepoAssigment: assignmentRepo,
-		RepoCourse:    courseRepo,
+		Repo:                 repo,
+		RepoAssigment:        assignmentRepo,
+		RepoCourse:           courseRepo,
+		GeneratePresignedURL: config.GeneratePresignedURL,
 	}
 
 	authService, err := services.NewAuthService()

@@ -30,40 +30,53 @@ func (c *CourseContentController) GetCourseContentTeacher() echo.HandlerFunc {
 		if err != nil {
 			return ReturnReadResponse(e, echo.NewHTTPError(http.StatusForbidden, "Este curso no le pertenece al profesor"), nil)
 		}
+		// En tu controlador (antes de llamar al repositorio)
+		fmt.Printf("Repositorio: %+v\n", err)
 
 		data, err := c.Repo.GetContentByCourse(courseID)
+		fmt.Printf("Data recibida: %+v\n", data)        // Agrega esta línea para ver los datos
+		fmt.Printf("Error del repositorio: %+v\n", err) // Asegúrate de que este err sea nil
+
 		if err != nil {
 			return ReturnReadResponse(e, err, nil)
 		}
 
 		for i, content := range data {
-			for j, detail := range content.Details {
-				if detail.ContentID == "" {
-					continue
-				}
+			// **Verifica si content.Details no es nil antes de iterar**
+			if content.Details != nil {
+				for j, detail := range content.Details {
+					if detail.ContentID == "" {
+						continue
+					}
 
-				var key string
-				switch detail.ContentTypeID {
-				case 1: // Video
-					key = fmt.Sprintf("focused/%d/video/teacher/%s.json", courseID, detail.ContentID)
-				case 2: // Quiz
-					key = fmt.Sprintf("focused/%d/text/teacher/%s.json", courseID, detail.ContentID)
-				case 3: // Text
-					key = fmt.Sprintf("focused/%d/quiz/teacher/%s.json", courseID, detail.ContentID)
-				default:
-					continue
-				}
+					var key string
+					switch detail.ContentTypeID {
+					case 1: // Video
+						key = fmt.Sprintf("focused/%d/video/teacher/%s.json", courseID, detail.ContentID)
+					case 2: // Quiz
+						key = fmt.Sprintf("focused/%d/text/teacher/%s.json", courseID, detail.ContentID)
+					case 3: // Text
+						key = fmt.Sprintf("focused/%d/quiz/teacher/%s.json", courseID, detail.ContentID)
+					default:
+						continue
+					}
 
-				// Use the injected GeneratePresignedURL function
-				signedURL, err := c.GeneratePresignedURL("zeppelin", key)
-				if err != nil {
-					return ReturnReadResponse(e, echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("error al generar URL firmada para content_type_id %d", detail.ContentTypeID)), nil)
-				}
+					// Use the injected GeneratePresignedURL function
+					// Verifica si c.GeneratePresignedURL no es nil
+					if c.GeneratePresignedURL == nil {
+						return ReturnReadResponse(e, echo.NewHTTPError(http.StatusInternalServerError, "función GeneratePresignedURL no inicializada"), nil)
+					}
 
-				if detail.ContentTypeID == 1 {
-					data[i].Details[j].Url = detail.Url
-				} else {
-					data[i].Details[j].Url = signedURL
+					signedURL, err := c.GeneratePresignedURL("zeppelin", key)
+					if err != nil {
+						return ReturnReadResponse(e, echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("error al generar URL firmada para content_type_id %d", detail.ContentTypeID)), nil)
+					}
+
+					if detail.ContentTypeID == 1 {
+						data[i].Details[j].Url = detail.Url
+					} else {
+						data[i].Details[j].Url = signedURL
+					}
 				}
 			}
 		}
