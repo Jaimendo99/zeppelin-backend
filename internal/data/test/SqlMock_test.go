@@ -6,7 +6,7 @@ import (
 	"gorm.io/driver/postgres" // Use the GORM driver matching your actual DB
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"regexp" // For quoting SQL strings in mocks
+	"strings"
 	"testing"
 )
 
@@ -29,5 +29,19 @@ func setupMockDb(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
 }
 
 func quoteSql(sql string) string {
-	return regexp.QuoteMeta(sql)
+	replacer := strings.NewReplacer(
+		`.`, `\.`,
+		`*`, `\*`,
+		`+`, `\+`,
+		`?`, `\?`,
+		`|`, `\|`,
+		`(`, `\(`,
+		`)`, `\)`,
+		`[`, `\[`,
+		`{`, `\{`,
+		`\`, `\\`,
+		`^`, `\^`,
+		`$`, `\$`,
+	)
+	return replacer.Replace(sql)
 }

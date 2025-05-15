@@ -141,4 +141,5 @@ type CourseContentRepo interface {
 	UpdateModuleTitle(courseContentID int, moduleTitle string) error
 	UpdateUserContentStatus(userID, contentID string, statusID int) error
 	GetContentTypeID(contentID string) (int, error)
+	GetUrlByContentID(contentID string) (string, error)
 }

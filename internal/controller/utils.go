@@ -132,6 +132,7 @@ func ValidateAndBind[T any](e echo.Context, input *T) error {
 	if err := e.Bind(input); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
 	}
+	fmt.Printf("DEBUG input: %+v\n", input) // Agrega esto
 	if err := e.Validate(input); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, GetValidationFieldError(err))
 	}

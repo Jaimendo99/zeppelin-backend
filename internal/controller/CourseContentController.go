@@ -12,9 +12,10 @@ import (
 )
 
 type CourseContentController struct {
-	Repo          domain.CourseContentRepo
-	RepoAssigment domain.AssignmentRepo
-	RepoCourse    domain.CourseRepo
+	Repo                 domain.CourseContentRepo
+	RepoAssigment        domain.AssignmentRepo
+	RepoCourse           domain.CourseRepo
+	GeneratePresignedURL func(bucket, key string) (string, error)
 }
 
 func (c *CourseContentController) GetCourseContentTeacher() echo.HandlerFunc {
@@ -53,7 +54,8 @@ func (c *CourseContentController) GetCourseContentTeacher() echo.HandlerFunc {
 					continue
 				}
 
-				signedURL, err := config.GeneratePresignedURL("zeppelin", key)
+				// Use the injected GeneratePresignedURL function
+				signedURL, err := c.GeneratePresignedURL("zeppelin", key)
 				if err != nil {
 					return ReturnReadResponse(e, echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("error al generar URL firmada para content_type_id %d", detail.ContentTypeID)), nil)
 				}
@@ -69,7 +71,6 @@ func (c *CourseContentController) GetCourseContentTeacher() echo.HandlerFunc {
 		return ReturnReadResponse(e, nil, data)
 	}
 }
-
 func (c *CourseContentController) GetCourseContentForStudent() echo.HandlerFunc {
 	return func(e echo.Context) error {
 		role := e.Get("user_role").(string)
@@ -112,7 +113,7 @@ func (c *CourseContentController) GetCourseContentForStudent() echo.HandlerFunc 
 				case 2: // Quiz
 					key = fmt.Sprintf("focused/%d/text/student/%s.json", courseID, detail.ContentID)
 				case 3: // Text
-					key = fmt.Sprintf("focused/%d/quiz/teacher/%s.json", courseID, detail.ContentID)
+					key = fmt.Sprintf("focused/%d/quiz/student/%s.json", courseID, detail.ContentID)
 				default:
 					continue
 				}

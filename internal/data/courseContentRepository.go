@@ -246,3 +246,18 @@ func (r *courseContentRepo) UpdateUserContentStatus(userID, contentID string, st
 		Where("user_id = ? AND content_id = ?", userID, contentID).
 		Update("status_id", statusID).Error
 }
+
+func (r *courseContentRepo) GetUrlByContentID(contentID string) (string, error) {
+	var content domain.Content
+	err := r.db.Table("content").
+		Select("url").
+		Where("content_id = ?", contentID).
+		First(&content).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return "", errors.New("content not found")
+		}
+		return "", err
+	}
+	return content.Url, nil
+}
