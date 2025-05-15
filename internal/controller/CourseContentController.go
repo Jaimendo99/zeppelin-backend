@@ -124,7 +124,7 @@ func (c *CourseContentController) GetCourseContentForStudent() echo.HandlerFunc 
 				var key string
 				switch detail.ContentTypeID {
 				case 2: // Quiz
-					key = fmt.Sprintf("focused/%d/text/student/%s.json", courseID, detail.ContentID)
+					key = fmt.Sprintf("focused/%d/text/teacher/%s.json", courseID, detail.ContentID)
 				case 3: // Text
 					key = fmt.Sprintf("focused/%d/quiz/student/%s.json", courseID, detail.ContentID)
 				default:
