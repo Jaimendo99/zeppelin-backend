@@ -39,7 +39,7 @@ func (r *courseRepo) GetCoursesByStudent2(studentID string) ([]domain.CourseDbRe
 	result := r.db.Where("user_id = ?", studentID).
 		Preload("Course.Teacher").
 		Preload("Course.CourseContent").
-		Preload("Course.CourseContent.Content").
+		// Preload("Course.CourseContent.Content").
 		Find(&assignments)
 
 	if result.Error != nil {
