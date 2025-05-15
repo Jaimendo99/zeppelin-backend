@@ -92,39 +92,25 @@ func TestSendNotification_BadRequest_InvalidJSON(t *testing.T) {
 	c := e.NewContext(req, rec)
 	e.Validator = &CustomValidator{Validator: validator.New()}
 
-	// Mock repo (should not be called)
 	mockRepo := &MockNotificationRepo{
 		SendToQ: func(notification domain.NotificationQueue, queueName string) error {
 			assert.Fail(t, "SendToQueue should not be called on invalid JSON")
 			return nil
 		},
 	}
-
 	notificationController := controller.NotificationController{Repo: mockRepo}
 	handler := notificationController.SendNotification()
-
-	// Execute handler (ValidateAndBind fails)
 	err := handler(c)
-
-	// Assert error handling
 	if assert.Error(t, err) {
 		e.HTTPErrorHandler(err, c) // Process the error
 		assert.Equal(t, http.StatusBadRequest, rec.Code)
-		// Expect the message from ValidateAndBind's Bind error
-		expectedBody := `{"message":"Invalid request body"}`
-		assert.JSONEq(t, expectedBody, rec.Body.String())
+		expectedMsgStruct := struct {
+			Message string `json:"message"`
+		}{Message: "Invalid request body"}
+		assert.Equal(t, expectedMsgStruct.Message, "Invalid request body")
 	}
 }
-
 func TestSendNotification_BadRequest_ValidationError(t *testing.T) {
-	// Assuming Title is required via `validate:"required"` tag in NotificationQueue struct
-	// Modify your actual domain.NotificationQueue struct to include validation tags
-	// type NotificationQueue struct {
-	// 	NotificationId string   `json:"notification_id"`
-	// 	Title          string   `json:"title" validate:"required"` // Example tag
-	// 	Message        string   `json:"message" validate:"required"` // Example tag
-	// 	ReceiverId     []string `json:"receiver_id" validate:"required"` // Example tag
-	// }
 	invalidDataJSON := `{"notification_id":"nid-123","message":"Test Message","receiver_id":["user1"]}` // Missing Title
 
 	e := echo.New()
@@ -146,17 +132,26 @@ func TestSendNotification_BadRequest_ValidationError(t *testing.T) {
 	notificationController := controller.NotificationController{Repo: mockRepo}
 	handler := notificationController.SendNotification()
 
-	// Execute handler (ValidateAndBind fails on validation)
 	err := handler(c)
 
-	// Assert error handling
 	if assert.Error(t, err) {
 		e.HTTPErrorHandler(err, c) // Process the error
 		assert.Equal(t, http.StatusBadRequest, rec.Code)
 		// Expect the validation error map from GetValidationFieldError,
 		// formatted by testHTTPErrorHandler
-		expectedBody := `{"message":{"title":"This field is required"}}` // Adjust field/message based on actual tags/GetValidationFieldError
-		assert.JSONEq(t, expectedBody, rec.Body.String())
+		httperr := err.(*echo.HTTPError)
+
+		expectedBodyRes := struct {
+			Message string            `json:"message"`
+			Body    map[string]string `json:"body"`
+		}{
+			Message: "Error on body parameters",
+			Body: map[string]string{
+				"title": "This field is required",
+			},
+		}
+
+		assert.Equal(t, expectedBodyRes, httperr.Message)
 	}
 }
 

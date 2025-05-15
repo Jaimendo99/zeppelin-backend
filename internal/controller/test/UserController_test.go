@@ -196,7 +196,9 @@ func TestUserController_RegisterUser(t *testing.T) {
 
 		if ok {
 			assert.Equal(t, http.StatusBadRequest, httpErr.Code)
-			assert.Equal(t, "Invalid request body", httpErr.Message)
+			assert.Equal(t, struct {
+				Message string `json:"message"`
+			}{Message: "Invalid request body"}, httpErr.Message)
 		}
 
 		assert.Empty(t, rec.Body.String(), "Response body should be empty as error was returned early")
@@ -342,8 +344,7 @@ func TestUserController_GetUser(t *testing.T) {
 		mockUserRepo.AssertExpectations(t)
 	})
 
-	// --- Test Case 5: Failure - User Not Found ---
-	t.Run("Failure_UserNotFound", func(t *testing.T) {
+	t.Run("UserNotFound_ReturnsEmptySlice", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/user", nil)
 		c, rec := setupTest(req)
 
@@ -355,24 +356,21 @@ func TestUserController_GetUser(t *testing.T) {
 		}
 		c.Set("user", claims)
 
-		mockUserRepo.On("GetUser", mockUserID).Return(nil, nil).Once() // Scenario 1: nil, nil
+		// Mock GetUser to return nil, nil indicating user not found
+		mockUserRepo.On("GetUser", mockUserID).Return(nil, nil).Once()
 
 		handler := userController.GetUser()
 		err := handler(c)
 
-		assert.Error(t, err)
-		var httpErr *echo.HTTPError
-		ok := errors.As(err, &httpErr)
-		assert.True(t, ok, "Expected error to be *echo.HTTPError") // Check if it's the expected type
+		// Assert no error occurred
+		assert.NoError(t, err)
 
-		if ok {
-			assert.Equal(t, http.StatusNotFound, httpErr.Code)
-			expectedMsgStruct := struct {
-				Message string `json:"message"`
-			}{Message: "Resource not found"}
-			assert.Equal(t, expectedMsgStruct, httpErr.Message)
-		}
-		assert.Empty(t, rec.Body.String())
+		// Assert successful status code
+		assert.Equal(t, http.StatusOK, rec.Code)
+
+		// Assert the response body is an empty JSON array
+		assert.Equal(t, "[]\n", rec.Body.String()) // Echo adds a newline by default
+
 		mockUserRepo.AssertExpectations(t)
 	})
 }
