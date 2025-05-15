@@ -152,7 +152,7 @@ func TestGetCoursesByStudent2_Success(t *testing.T) {
 		assert.Contains(t, bodyStr, `"id":1`)
 		assert.Contains(t, bodyStr, `"title":"Advanced Go"`)
 		assert.Contains(t, bodyStr, `"teacher":{"user_id":"teacher-xyz","name":"Jane","lastname":"Doe","email":"jane.doe@example.com"}`)
-		assert.Contains(t, bodyStr, `"modules":[{"module_id":10,"module_name":"Module 1","module_index":1,"contents":[{"content_id":"content-abc"`)
+		assert.Contains(t, bodyStr, `"modules_summary"`)
 	}
 }
 

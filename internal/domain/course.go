@@ -71,20 +71,25 @@ type ContentOutput struct {
 	SectionIndex  int    `json:"section_index"`
 }
 
+type ModuleSummary struct {
+	NumModules      int    `json:"num_modules"`
+	LastModuleIndex int    `json:"last_module_index"`
+	LastModuleName  string `json:"last_module_name"`
+}
+
 type ModuleOutput struct {
-	ModuleID    int             `json:"module_id"`
-	ModuleName  string          `json:"module_name"`
-	ModuleIndex int             `json:"module_index"`
-	Contents    []ContentOutput `json:"contents"`
+	ModuleID    int    `json:"module_id"`
+	ModuleName  string `json:"module_name"`
+	ModuleIndex int    `json:"module_index"`
 }
 
 type CourseOutput struct {
-	CourseID    int            `json:"id"`
-	Title       string         `json:"title"`
-	StartDate   time.Time      `json:"start_date"`
-	Description string         `json:"description"`
-	Teacher     TeacherOutput  `json:"teacher"`
-	Modules     []ModuleOutput `json:"modules"`
+	CourseID       int           `json:"id"`
+	Title          string        `json:"title"`
+	StartDate      time.Time     `json:"start_date"`
+	Description    string        `json:"description"`
+	Teacher        TeacherOutput `json:"teacher"`
+	ModulesSummary ModuleSummary `json:"modules_summary"`
 }
 
 func (c *CourseDbRelation) ToCourseOutput() CourseOutput {
@@ -99,33 +104,24 @@ func (c *CourseDbRelation) ToCourseOutput() CourseOutput {
 			Lastname: c.Teacher.Lastname,
 			Email:    c.Teacher.Email,
 		},
-		Modules: []ModuleOutput{}, // Initialize the slice
+		ModulesSummary: ModuleSummary{}, // Initialize the slice
+	}
+	num := len(c.CourseContent)
+	lastModuleIndex := 0
+	lastModuleName := ""
+	for _, module := range c.CourseContent {
+		if module.ModuleIndex > lastModuleIndex {
+			lastModuleIndex = module.ModuleIndex
+			lastModuleName = module.Module
+		}
+	}
+	module := ModuleSummary{
+		NumModules:      num,
+		LastModuleIndex: lastModuleIndex,
+		LastModuleName:  lastModuleName,
 	}
 
-	// Map CourseContent to Modules
-	for _, cc := range c.CourseContent {
-		module := ModuleOutput{
-			ModuleID:    cc.CourseContentID,
-			ModuleName:  cc.Module,
-			ModuleIndex: cc.ModuleIndex,
-			Contents:    []ContentOutput{}, // Initialize the slice
-		}
-
-		// Map Content to Contents within the module
-		for _, content := range cc.Content {
-			contentOutput := ContentOutput{
-				ContentID:     content.ContentID,
-				ContentTypeID: content.ContentTypeID,
-				Title:         content.Title,
-				Description:   content.Description,
-				Url:           content.Url,
-				SectionIndex:  content.SectionIndex,
-			}
-			module.Contents = append(module.Contents, contentOutput)
-		}
-
-		output.Modules = append(output.Modules, module)
-	}
+	output.ModulesSummary = module
 
 	return output
 }

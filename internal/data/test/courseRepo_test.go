@@ -232,8 +232,7 @@ func TestCourseRepo_GetCoursesByStudent2(t *testing.T) {
 		mockCourseContent1 := domain.CourseContentDb{CourseContentID: 201, CourseID: 101, Module: "Module 1 for Course 101", ModuleIndex: 1, CreatedAt: now, IsActive: true}
 		mockCourseContent2 := domain.CourseContentDb{CourseContentID: 202, CourseID: 102, Module: "Module 1 for Course 102", ModuleIndex: 1, CreatedAt: now, IsActive: true}
 
-		mockContent1_1 := domain.ContentDb{ContentID: "contentA", CourseContentID: 201, Title: "Content A for Module 201", SectionIndex: 1, ContentTypeID: 1}
-		mockContent2_1 := domain.ContentDb{ContentID: "contentB", CourseContentID: 202, Title: "Content B for Module 202", SectionIndex: 1, ContentTypeID: 1}
+
 
 		// 1. Mock query for assignments
 		assignmentsQuery := quoteSql(`SELECT * FROM "assignment" WHERE user_id = $1`)
@@ -258,12 +257,7 @@ func TestCourseRepo_GetCoursesByStudent2(t *testing.T) {
 			AddRow(mockCourseContent2.CourseContentID, mockCourseContent2.CourseID, mockCourseContent2.Module, mockCourseContent2.ModuleIndex, mockCourseContent2.CreatedAt, mockCourseContent2.IsActive)
 		mock.ExpectQuery(courseContentsQuery).WithArgs(mockCourse1.CourseID, mockCourse2.CourseID).WillReturnRows(courseContentRows)
 
-		// 4. Mock query for content (related to course_content)
-		contentsQuery := quoteSql(`SELECT * FROM "content" WHERE "content"."course_content_id" IN ($1,$2)`)
-		contentRows := sqlmock.NewRows([]string{"content_id", "course_content_id", "content_type_id", "title", "url", "description", "section_index"}).
-			AddRow(mockContent1_1.ContentID, mockContent1_1.CourseContentID, mockContent1_1.ContentTypeID, mockContent1_1.Title, mockContent1_1.Url, mockContent1_1.Description, mockContent1_1.SectionIndex).
-			AddRow(mockContent2_1.ContentID, mockContent2_1.CourseContentID, mockContent2_1.ContentTypeID, mockContent2_1.Title, mockContent2_1.Url, mockContent2_1.Description, mockContent2_1.SectionIndex)
-		mock.ExpectQuery(contentsQuery).WithArgs(mockCourseContent1.CourseContentID, mockCourseContent2.CourseContentID).WillReturnRows(contentRows)
+
 
 		// 5. Mock query for teachers (related to courses)
 		teachersQuery := quoteSql(`SELECT * FROM "user" WHERE "user"."user_id" IN ($1,$2)`) // Assuming TeacherIDs are sorted by GORM if different
@@ -272,7 +266,6 @@ func TestCourseRepo_GetCoursesByStudent2(t *testing.T) {
 			AddRow(mockTeacherB.UserID, mockTeacherB.Name, mockTeacherB.Lastname, mockTeacherB.Email, mockTeacherB.TypeID)
 		// The order of TeacherID in IN clause depends on the order of courses, assuming teacherA, teacherB for course1, course2
 		mock.ExpectQuery(teachersQuery).WithArgs(mockCourse1.TeacherID, mockCourse2.TeacherID).WillReturnRows(teacherRows)
-
 
 		courses, err := repo.GetCoursesByStudent2(studentID)
 
@@ -285,8 +278,7 @@ func TestCourseRepo_GetCoursesByStudent2(t *testing.T) {
 		assert.Equal(t, mockTeacherA.Name, courses[0].Teacher.Name)
 		require.Len(t, courses[0].CourseContent, 1)
 		assert.Equal(t, mockCourseContent1.Module, courses[0].CourseContent[0].Module)
-		require.Len(t, courses[0].CourseContent[0].Content, 1)
-		assert.Equal(t, mockContent1_1.Title, courses[0].CourseContent[0].Content[0].Title)
+
 
 		// Assert Course 2
 		assert.Equal(t, mockCourse2.Title, courses[1].Title)
@@ -294,12 +286,11 @@ func TestCourseRepo_GetCoursesByStudent2(t *testing.T) {
 		assert.Equal(t, mockTeacherB.Name, courses[1].Teacher.Name)
 		require.Len(t, courses[1].CourseContent, 1)
 		assert.Equal(t, mockCourseContent2.Module, courses[1].CourseContent[0].Module)
-		require.Len(t, courses[1].CourseContent[0].Content, 1)
-		assert.Equal(t, mockContent2_1.Title, courses[1].CourseContent[0].Content[0].Title)
+
 
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
-
+	
 	t.Run("Success - Not Found (No Assignments)", func(t *testing.T) {
 		gormDb, mock := setupMockDb(t)
 		repo := data.NewCourseRepo(gormDb)
@@ -347,7 +338,6 @@ func TestCourseRepo_GetCoursesByStudent2(t *testing.T) {
 		// GORM optimizes IN clause with single argument to =
 		coursesQuery := quoteSql(`SELECT * FROM "course" WHERE "course"."course_id" = $1`)
 		mock.ExpectQuery(coursesQuery).WithArgs(mockAssignment1.CourseID).WillReturnError(dbErr)
-
 
 		courses, err := repo.GetCoursesByStudent2(studentID)
 
