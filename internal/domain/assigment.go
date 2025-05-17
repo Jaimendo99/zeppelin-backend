@@ -1,6 +1,8 @@
 package domain
 
-import "time"
+import (
+	"time"
+)
 
 type AssignmentDB struct {
 	AssignmentID int        `json:"id" gorm:"primaryKey"`
@@ -9,6 +11,22 @@ type AssignmentDB struct {
 	AssignedAt   *time.Time `json:"assigned_at"`
 	IsActive     *bool      `json:"is_active" gorm:"default:false"`
 	IsVerify     *bool      `json:"is_verify" gorm:"default:false"`
+}
+
+type AssignmentDbRelation struct {
+	AssignmentID uint      `gorm:"primaryKey;autoIncrement;column:assignment_id"`
+	UserID       string    `gorm:"column:user_id;not null"`
+	CourseID     uint      `gorm:"column:course_id;not null"`
+	AssignedAt   time.Time `gorm:"column:assigned_at;autoCreateTime"`
+	IsActive     bool      `gorm:"column:is_active;default:false"`
+	IsVerify     bool      `gorm:"column:is_verify;default:false"`
+
+	User   UserDbRelation   `gorm:"foreignKey:UserID;references:UserID"`
+	Course CourseDbRelation `gorm:"foreignKey:CourseID;references:CourseID"`
+}
+
+func (AssignmentDbRelation) TableName() string {
+	return "assignment"
 }
 
 type AssignmentWithCourse struct {

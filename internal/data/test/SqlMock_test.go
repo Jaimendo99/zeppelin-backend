@@ -16,8 +16,8 @@ func setupMockDb(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
 	require.NoError(t, err)
 
 	dialector := postgres.New(postgres.Config{
-		Conn: db,
-		//PreferSimpleProtocol: true, // Might be needed depending on query types/driver
+		Conn:                 db,
+		PreferSimpleProtocol: true, // Might be needed depending on query types/driver
 	})
 
 	gormDb, err := gorm.Open(dialector, &gorm.Config{
