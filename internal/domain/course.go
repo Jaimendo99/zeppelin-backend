@@ -55,6 +55,16 @@ func (ContentDb) TableName() string {
 	return "content"
 }
 
+type CourseDetailOutput struct {
+	CourseID    int       `json:"id"`
+	Title       string    `json:"title"`
+	StartDate   time.Time `json:"start_date"`
+	Description string    `json:"description"`
+
+	Teacher TeacherOutput  `json:"teacher"`
+	Modules []ModuleOutput `json:"modules"`
+}
+
 type TeacherOutput struct {
 	UserID   string `json:"user_id"`
 	Name     string `json:"name"`
@@ -78,9 +88,10 @@ type ModuleSummary struct {
 }
 
 type ModuleOutput struct {
-	ModuleID    int    `json:"module_id"`
-	ModuleName  string `json:"module_name"`
-	ModuleIndex int    `json:"module_index"`
+	ModuleID    int             `json:"module_id"`
+	ModuleName  string          `json:"module_name"`
+	ModuleIndex int             `json:"module_index"`
+	Content     []ContentOutput `json:"content"`
 }
 
 type CourseOutput struct {
@@ -90,6 +101,45 @@ type CourseOutput struct {
 	Description    string        `json:"description"`
 	Teacher        TeacherOutput `json:"teacher"`
 	ModulesSummary ModuleSummary `json:"modules_summary"`
+}
+
+func (c *CourseDbRelation) ToCourseDetailOutput() CourseDetailOutput {
+	output := CourseDetailOutput{
+		CourseID:    c.CourseID,
+		Title:       c.Title,
+		StartDate:   c.StartDate,
+		Description: c.Description,
+		Teacher: TeacherOutput{
+			UserID:   c.Teacher.UserID,
+			Name:     c.Teacher.Name,
+			Lastname: c.Teacher.Lastname,
+			Email:    c.Teacher.Email,
+		},
+		Modules: []ModuleOutput{}, // Initialize the slice
+	}
+
+	for _, moduleDB := range c.CourseContent {
+		moduleOut := ModuleOutput{
+			ModuleID:    moduleDB.CourseContentID,
+			ModuleName:  moduleDB.Module,
+			ModuleIndex: moduleDB.ModuleIndex,
+			Content:     []ContentOutput{}, // Initialize the slice
+		}
+		for _, contentDB := range moduleDB.Content {
+			contentOut := ContentOutput{
+				ContentID:     contentDB.ContentID,
+				ContentTypeID: contentDB.ContentTypeID,
+				Title:         contentDB.Title,
+				Description:   contentDB.Description,
+				Url:           contentDB.Url,
+				SectionIndex:  contentDB.SectionIndex,
+			}
+			moduleOut.Content = append(moduleOut.Content, contentOut)
+		}
+		output.Modules = append(output.Modules, moduleOut)
+	}
+
+	return output
 }
 
 func (c *CourseDbRelation) ToCourseOutput() CourseOutput {
@@ -142,6 +192,7 @@ type CourseRepo interface {
 	GetCoursesByStudent(studentID string) ([]CourseDB, error)
 	GetCoursesByStudent2(studentID string) ([]CourseDbRelation, error)
 	GetCourseByTeacherAndCourseID(teacherID string, courseID int) (CourseDB, error)
+	GetCourse(studentID, courseID string) (*CourseDbRelation, error)
 }
 
 func (CourseDB) TableName() string {

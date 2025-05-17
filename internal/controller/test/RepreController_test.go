@@ -3,6 +3,7 @@ package controller_test
 import (
 	"encoding/json"
 	"errors"
+	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -184,18 +185,28 @@ func TestRepresentativeController_GetRepresentative(t *testing.T) {
 		mockRepo.AssertExpectations(t)
 	})
 
-	t.Run("NotFound_ReturnsEmptySlice", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/representatives/404", nil)
-		c, rec := setupTest(req)
+	t.Run("RepresentativeNotFound_ReturnsNotFoundError", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet,
+			"/representatives/404", nil)
+		c, _ := setupTest(req)
+
 		c.SetParamNames("representative_id")
 		c.SetParamValues("404")
 		expectedID := 404
-		mockRepo.On("GetRepresentative", expectedID).Return(nil, nil).Once()
+		mockRepo.
+			On("GetRepresentative", expectedID).
+			Return(nil, gorm.ErrRecordNotFound).
+			Once()
+
 		handler := representativeController.GetRepresentative()
 		err := handler(c)
-		assert.NoError(t, err)
-		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.Equal(t, "[]\n", rec.Body.String()) // Echo adds a newline by default
+		he, ok := err.(*echo.HTTPError)
+		require.True(t, ok, "expected *echo.HTTPError, got %T", err)
+		assert.Equal(t, http.StatusNotFound, he.Code)
+		expectedBody := struct {
+			Message string `json:"message"`
+		}{Message: "Record not found"}
+		assert.Equal(t, expectedBody, he.Message)
 		mockRepo.AssertExpectations(t)
 	})
 
