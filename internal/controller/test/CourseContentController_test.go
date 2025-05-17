@@ -9,11 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"zeppelin/internal/controller"
+	"zeppelin/internal/domain"
+
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
-	"zeppelin/internal/controller"
-	"zeppelin/internal/domain"
 )
 
 // MockCourseContentRepo mocks CourseContentRepo

@@ -1,6 +1,7 @@
 package controller_test
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
+	"gorm.io/gorm"
 )
 
 // MockCourseRepo mocks CourseRepo
@@ -23,6 +25,7 @@ type MockCourseRepo struct {
 	GetCoursesByS                  func(studentID string) ([]domain.CourseDB, error)
 	GetCourseByS2                  func(studentID string) ([]domain.CourseDbRelation, error)
 	GetCourseByTeacherAndCourseIDT func(teacherID string, courseID int) (domain.CourseDB, error)
+	GetCoursesByS2T                func(studentID, courseID string) (*domain.CourseDbRelation, error)
 }
 
 func (m MockCourseRepo) GetCourseByTeacherAndCourseID(teacherID string, courseID int) (domain.CourseDB, error) {
@@ -57,6 +60,13 @@ func (m MockCourseRepo) GetCoursesByStudent2(studentID string) ([]domain.CourseD
 		return m.GetCourseByS2(studentID)
 	}
 	return nil, errors.New("GetCourseByS2 function not implemented in mock")
+}
+
+func (m MockCourseRepo) GetCourse(studentID, courseID string) (*domain.CourseDbRelation, error) {
+	if m.GetCoursesByS2T != nil {
+		return m.GetCoursesByS2T(studentID, courseID)
+	}
+	return nil, errors.New("GetCourses function not implemented in mock")
 }
 
 // --- Helpers ---
@@ -685,5 +695,254 @@ func TestGetCoursesByStudent_RepoError(t *testing.T) {
 		if assert.True(t, ok) {
 			assert.Equal(t, "Internal server error", msgStruct.Message)
 		}
+	}
+}
+
+func TestCourseController_GetCourse_Success(t *testing.T) {
+	testUserID := "student-112"
+	testRole := "org:student"
+	testCourseID := "course-123"
+
+	date := time.Date(2025, 12, 24, 0, 0, 0, 0, time.UTC)
+
+	mockRepo := MockCourseRepo{
+		GetCoursesByS2T: func(studentID, courseID string) (*domain.CourseDbRelation, error) {
+			assert.Equal(t, testUserID, studentID)
+			assert.Equal(t, testCourseID, courseID) // This seems like a potential bug, comparing courseID to itself. Did you mean another variable?
+			return &domain.CourseDbRelation{
+				CourseID:    1,
+				Title:       "Advanced Go",
+				StartDate:   date,
+				Description: "Deep dive into Go",
+				Teacher: domain.UserDbRelation{
+					UserID:   "teacher-xyz",
+					Name:     "Jane",
+					Lastname: "Doe",
+					Email:    "teacher@gmail.com",
+				},
+				CourseContent: []domain.CourseContentDb{
+					{ // Added curly braces for the struct literal
+						CourseContentID: 10,
+						Module:          "Module 1",
+						ModuleIndex:     1,
+						Content: []domain.ContentDb{
+							{ // Added curly braces for the struct literal
+								ContentID:     "content-abc",
+								ContentTypeID: 1,
+								Title:         "Introduction Video",
+								Description:   "First video",
+								Url:           "http://example.com/video1",
+							},
+						},
+					},
+				},
+			}, nil
+		},
+	}
+	expectedJson, err := mockRepo.GetCourse(testUserID, testCourseID)
+	if err != nil {
+		t.Fatalf("Error getting course: %v", err)
+	}
+	// Convert the expectedJson to the expected output format
+	// For simplicity, we'll check for key fields. A more robust test would marshal the expected output.
+
+	marshallJson, err := json.Marshal(expectedJson.ToCourseDetailOutput())
+	if err != nil {
+		t.Fatalf("Failed to marshal expected controller output: %v", err)
+	}
+
+	e := echo.New()
+	// Adjust path to match your route definition, e.g., /courses/:course_id
+	reqPath := "/courses/" + testCourseID
+	req := httptest.NewRequest(http.MethodGet, reqPath, nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	// Set context values (for auth, etc.)
+	c.Set("user_id", testUserID)
+	c.Set("user_role", testRole)
+
+	// Set path parameters for Echo to correctly bind e.Param("course_id")
+	c.SetPath("/courses/:course_id") // The route pattern registered in Echo
+	c.SetParamNames("course_id")
+	c.SetParamValues(testCourseID)
+
+	courseController := controller.CourseController{Repo: mockRepo}
+	handler := courseController.GetCourse()
+
+	err = handler(c)
+
+	// Assertions
+	if assert.NoError(t, err, "Handler returned an error") {
+		assert.Equal(t, http.StatusOK, rec.Code, "HTTP status code not OK")
+
+		// Compare the expected JSON with the actual JSON response from the controller
+		assert.JSONEq(t, string(marshallJson), rec.Body.String(), "JSON response does not match expected")
+	}
+
+}
+
+func TestCourseController_GetCourse_NotFound(t *testing.T) {
+	testUserID := "student-112"
+	testRole := "org:student"
+	testCourseID := "course-xyz-nonexistent"
+	mockRepo := &MockCourseRepo{ // Use a pointer if your interface expects it
+		GetCoursesByS2T: func(studentID, courseID string) (*domain.CourseDbRelation, error) {
+			assert.Equal(t, testUserID, studentID)
+			assert.Equal(t, testCourseID, courseID)
+			return nil, gorm.ErrRecordNotFound // Simulate course not found
+		},
+	}
+
+	e := echo.New()
+
+	reqPath := "/courses/" + testCourseID
+	req := httptest.NewRequest(http.MethodGet, reqPath, nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	c.Set("user_id", testUserID)
+	c.Set("user_role", testRole)
+	c.SetPath("/courses/:course_id") // Route pattern
+	c.SetParamNames("course_id")
+	c.SetParamValues(testCourseID)
+
+	var repoInterface domain.CourseRepo = mockRepo
+	courseCtrl := controller.CourseController{Repo: repoInterface}
+	handler := courseCtrl.GetCourse()
+
+	returnedErr := handler(c)
+
+	if returnedErr != nil {
+		e.HTTPErrorHandler(returnedErr, c) // This will use Echo's default or your custom one
+	}
+	if assert.Error(t, returnedErr, "Handler should have returned an error for NotFound case") {
+		var httpErr *echo.HTTPError
+		if assert.True(t, errors.As(returnedErr, &httpErr), "Error should be an *echo.HTTPError") {
+			assert.Equal(t, http.StatusNotFound, httpErr.Code, "echo.HTTPError code mismatch")
+		}
+
+		assert.Equal(t, http.StatusNotFound, rec.Code, "HTTP status code in recorder is not StatusNotFound")
+
+		expectedBody := `{"message":"Record not found"}`
+		assert.JSONEq(t, expectedBody, rec.Body.String(), "JSON response body does not match expected for NotFound")
+	} else {
+		assert.Fail(t, "Expected handler to return an error, but it returned nil.")
+	}
+}
+
+func TestCourseController_GetCourse_RepoError(t *testing.T) {
+	testUserID := "student-112"
+	testRole := "org:student"
+	testCourseID := "course-abc-repo-error"
+
+	mockRepoError := errors.New("database unavailable")
+
+	mockRepo := &MockCourseRepo{
+		GetCoursesByS2T: func(studentID, courseID string) (*domain.CourseDbRelation, error) {
+			assert.Equal(t, testUserID, studentID)
+			assert.Equal(t, testCourseID, courseID)
+			return nil, mockRepoError
+		},
+	}
+
+	e := echo.New()
+	reqPath := "/courses/" + testCourseID
+	req := httptest.NewRequest(http.MethodGet, reqPath, nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	c.Set("user_id", testUserID)
+	c.Set("user_role", testRole)
+	c.SetPath("/courses/:course_id")
+	c.SetParamNames("course_id")
+	c.SetParamValues(testCourseID)
+
+	var repoInterface domain.CourseRepo = mockRepo
+	courseCtrl := controller.CourseController{Repo: repoInterface}
+	handler := courseCtrl.GetCourse()
+
+	returnedErr := handler(c)
+
+	if returnedErr != nil {
+		e.HTTPErrorHandler(returnedErr, c)
+	}
+
+	if assert.Error(t, returnedErr, "Handler should have returned an error for RepoError case") {
+		var httpErr *echo.HTTPError
+		if assert.True(t, errors.As(returnedErr, &httpErr), "Error should be an *echo.HTTPError") {
+			// Your ReturnReadResponse will wrap a generic error into a 500
+			assert.Equal(t, http.StatusInternalServerError, httpErr.Code, "echo.HTTPError code mismatch")
+		}
+
+		assert.Equal(t, http.StatusInternalServerError, rec.Code, "HTTP status code not InternalServerError")
+
+		// Based on your ReturnReadResponse, a generic error becomes "Internal server error"
+		expectedBody := `{"message":"Internal server error"}`
+		assert.JSONEq(t, expectedBody, rec.Body.String(), "JSON response does not match expected for RepoError")
+	} else {
+		assert.Fail(t, "Expected handler to return an error, but it returned nil.")
+	}
+}
+
+func TestCourseController_GetCourse_Forbidden(t *testing.T) {
+	testUserID := "teacher-456"
+	testRole := "org:teacher"
+	testCourseID := "course-any"
+
+	mockRepo := &MockCourseRepo{
+		GetCoursesByS2T: func(studentID, courseID string) (*domain.CourseDbRelation, error) {
+			t.Errorf("GetCourseFunc should not be called for a forbidden role scenario")
+			return nil, errors.New("mock GetCourseFunc called unexpectedly in Forbidden test")
+		},
+	}
+
+	e := echo.New()
+	reqPath := "/courses/" + testCourseID
+	req := httptest.NewRequest(http.MethodGet, reqPath, nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	c.Set("user_id", testUserID)
+	c.Set("user_role", testRole)
+	c.SetPath("/courses/:course_id")
+	c.SetParamNames("course_id")
+	c.SetParamValues(testCourseID)
+
+	var repoInterface domain.CourseRepo = mockRepo
+	courseCtrl := controller.CourseController{Repo: repoInterface}
+	handler := courseCtrl.GetCourse()
+
+	returnedErr := handler(c)
+
+	if returnedErr != nil {
+		e.HTTPErrorHandler(returnedErr, c)
+	}
+
+	if assert.Error(t, returnedErr, "Handler should have returned an error for Forbidden case") {
+		var httpErr *echo.HTTPError
+		if assert.True(t, errors.As(returnedErr, &httpErr), "Error should be an *echo.HTTPError") {
+			assert.Equal(t, http.StatusForbidden, httpErr.Code, "echo.HTTPError code mismatch")
+
+			// Type assert httpErr.Message to the specific anonymous struct type
+			// that ReturnReadResponse creates as the payload.
+			if actualPayload, ok := httpErr.Message.(struct {
+				Message interface{} `json:"message"`
+			}); ok {
+				if actualMessageString, ok := actualPayload.Message.(string); ok {
+					assert.Equal(t, "Solo los estudiantes pueden ver sus cursos", actualMessageString)
+				} else {
+					assert.Fail(t, "The 'Message' field within the payload struct is not a string", "Got type %T for actualPayload.Message", actualPayload.Message)
+				}
+			} else {
+				assert.Fail(t, "httpErr.Message is not the expected anonymous struct { Message interface{} `json:\"message\"` }", "Got type %T for httpErr.Message", httpErr.Message)
+			}
+		}
+
+		assert.Equal(t, http.StatusForbidden, rec.Code, "HTTP status code not Forbidden")
+		expectedBody := `{"message":"Solo los estudiantes pueden ver sus cursos"}`
+		assert.JSONEq(t, expectedBody, rec.Body.String(), "JSON response does not match expected for Forbidden")
+	} else {
+		assert.Fail(t, "Expected handler to return an error, but it returned nil.")
 	}
 }

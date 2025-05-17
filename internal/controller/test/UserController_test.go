@@ -8,6 +8,8 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -344,35 +346,41 @@ func TestUserController_GetUser(t *testing.T) {
 		mockUserRepo.AssertExpectations(t)
 	})
 
-	t.Run("UserNotFound_ReturnsEmptySlice", func(t *testing.T) {
+	t.Run("UserNotFound_ReturnsNotFoundError", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/user", nil)
-		c, rec := setupTest(req)
+		c, _ := setupTest(req)
 
 		mockUserID := "user_test_789"
 		claims := &clerk.SessionClaims{
-			Claims: jwt.Claims{
-				Subject: mockUserID,
-			},
+			Claims: jwt.Claims{Subject: mockUserID},
 		}
 		c.Set("user", claims)
 
-		// Mock GetUser to return nil, nil indicating user not found
-		mockUserRepo.On("GetUser", mockUserID).Return(nil, nil).Once()
+		// If the repo returns ErrRecordNotFound, our handler should
+		// turn that into a 404 + { "message": "Record not found" }.
+		mockUserRepo.
+			On("GetUser", mockUserID).
+			Return((*domain.UserDb)(nil), gorm.ErrRecordNotFound).
+			Once()
 
 		handler := userController.GetUser()
 		err := handler(c)
+		// We expect an HTTPError back
+		he, ok := err.(*echo.HTTPError)
+		require.True(t, ok, "expected an *echo.HTTPError, got %T", err)
 
-		// Assert no error occurred
-		assert.NoError(t, err)
+		// Check the status code
+		assert.Equal(t, http.StatusNotFound, he.Code)
 
-		// Assert successful status code
-		assert.Equal(t, http.StatusOK, rec.Code)
-
-		// Assert the response body is an empty JSON array
-		assert.Equal(t, "[]\n", rec.Body.String()) // Echo adds a newline by default
+		// And the JSON payload matches our struct
+		expectedBody := struct {
+			Message string `json:"message"`
+		}{Message: "Record not found"}
+		assert.Equal(t, expectedBody, he.Message)
 
 		mockUserRepo.AssertExpectations(t)
 	})
+
 }
 
 func TestUserController_GetAllTeachers(t *testing.T) {

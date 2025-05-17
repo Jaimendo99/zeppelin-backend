@@ -49,14 +49,30 @@ func ReturnReadResponse(e echo.Context, err error, body any) error {
 			Message string `json:"message"`
 		}{Message: "Internal server error"})
 	}
-	if reflect.ValueOf(body).IsNil() {
+	// Handle nil body or specific nil types
+	if body == nil { // Catches truly nil interfaces passed as body
 		return e.JSON(http.StatusOK, []any{})
 	}
-	if reflect.ValueOf(body).Kind() == reflect.Ptr && reflect.ValueOf(body).IsNil() {
-		return echo.NewHTTPError(http.StatusNotFound, struct {
-			Message string `json:"message"`
-		}{Message: "Resource not found"})
+
+	val := reflect.ValueOf(body)
+	kind := val.Kind()
+
+	switch kind {
+	case reflect.Ptr:
+		if val.IsNil() {
+			return echo.NewHTTPError(http.StatusNotFound, struct {
+				Message string `json:"message"`
+			}{Message: "Resource not found"})
+		}
+	// Nillable types that should result in an empty array if nil
+	case reflect.Interface, reflect.Slice, reflect.Map, reflect.Chan, reflect.Func:
+		if val.IsNil() {
+			return e.JSON(http.StatusOK, []any{})
+		}
+	// For reflect.Struct, other non-nillable types, or non-nil values of the above,
+	// we fall through to the default behavior of returning the body.
 	}
+
 	return e.JSON(http.StatusOK, body)
 }
 

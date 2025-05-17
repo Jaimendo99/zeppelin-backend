@@ -2,6 +2,8 @@ package test_test
 
 import (
 	"errors"
+	"regexp"
+	"strconv"
 	"testing"
 	"time"
 	"zeppelin/internal/data"
@@ -285,6 +287,51 @@ func TestCourseRepo_GetCourseByTeacherAndCourseID(t *testing.T) {
 	})
 }
 
+func TestCourseRepo_GetCourse(t *testing.T) {
+	studentID := "student123"
+	courseID := 456
+
+	t.Run("Not Found", func(t *testing.T) {
+		gormDb, mock := setupMockDb(t)
+		repo := data.NewCourseRepo(gormDb)
+
+		// GORM with PrepareStmt=true will emit LIMIT $3 and bind a 3rd arg=1
+		sql := regexp.QuoteMeta(
+			`SELECT * FROM "assignment" WHERE user_id = $1 AND course_id = $2 ` +
+				`ORDER BY "assignment"."assignment_id" LIMIT $3`,
+		)
+		mock.ExpectQuery(sql).
+			WithArgs(studentID, strconv.Itoa(courseID), 1). // Corrected line
+			WillReturnError(gorm.ErrRecordNotFound)
+
+		course, err := repo.GetCourse(studentID, strconv.Itoa(courseID))
+		assert.Equal(t, gorm.ErrRecordNotFound, err)
+		assert.Equal(t, &domain.CourseDbRelation{}, course)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	t.Run("DB Error", func(t *testing.T) {
+		gormDb, mock := setupMockDb(t)
+		repo := data.NewCourseRepo(gormDb)
+
+		dbErr := errors.New("unexpected db error")
+
+		sql := regexp.QuoteMeta(
+			`SELECT * FROM "assignment" WHERE user_id = $1 AND course_id = $2 ` +
+				`ORDER BY "assignment"."assignment_id" LIMIT $3`,
+		)
+		mock.ExpectQuery(sql).
+			WithArgs(studentID, strconv.Itoa(courseID), 1). // Corrected line
+			WillReturnError(dbErr)
+
+		course, err := repo.GetCourse(studentID, strconv.Itoa(courseID))
+		assert.Equal(t, dbErr, err)
+		assert.Equal(t, &domain.CourseDbRelation{}, course)
+		assert.NoError(t, mock.ExpectationsWereMet())
+	})
+
+}
+
 func TestCourseRepo_GetCoursesByStudent2(t *testing.T) {
 	studentID := "student123"
 
@@ -306,8 +353,6 @@ func TestCourseRepo_GetCoursesByStudent2(t *testing.T) {
 
 		mockCourseContent1 := domain.CourseContentDb{CourseContentID: 201, CourseID: 101, Module: "Module 1 for Course 101", ModuleIndex: 1, CreatedAt: now, IsActive: true}
 		mockCourseContent2 := domain.CourseContentDb{CourseContentID: 202, CourseID: 102, Module: "Module 1 for Course 102", ModuleIndex: 1, CreatedAt: now, IsActive: true}
-
-
 
 		// 1. Mock query for assignments
 		assignmentsQuery := quoteSql(`SELECT * FROM "assignment" WHERE user_id = $1`)
@@ -332,8 +377,6 @@ func TestCourseRepo_GetCoursesByStudent2(t *testing.T) {
 			AddRow(mockCourseContent2.CourseContentID, mockCourseContent2.CourseID, mockCourseContent2.Module, mockCourseContent2.ModuleIndex, mockCourseContent2.CreatedAt, mockCourseContent2.IsActive)
 		mock.ExpectQuery(courseContentsQuery).WithArgs(mockCourse1.CourseID, mockCourse2.CourseID).WillReturnRows(courseContentRows)
 
-
-
 		// 5. Mock query for teachers (related to courses)
 		teachersQuery := quoteSql(`SELECT * FROM "user" WHERE "user"."user_id" IN ($1,$2)`) // Assuming TeacherIDs are sorted by GORM if different
 		teacherRows := sqlmock.NewRows([]string{"user_id", "name", "lastname", "email", "type_id"}).
@@ -354,7 +397,6 @@ func TestCourseRepo_GetCoursesByStudent2(t *testing.T) {
 		require.Len(t, courses[0].CourseContent, 1)
 		assert.Equal(t, mockCourseContent1.Module, courses[0].CourseContent[0].Module)
 
-
 		// Assert Course 2
 		assert.Equal(t, mockCourse2.Title, courses[1].Title)
 		assert.Equal(t, mockCourse2.CourseID, courses[1].CourseID)
@@ -362,10 +404,9 @@ func TestCourseRepo_GetCoursesByStudent2(t *testing.T) {
 		require.Len(t, courses[1].CourseContent, 1)
 		assert.Equal(t, mockCourseContent2.Module, courses[1].CourseContent[0].Module)
 
-
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
-	
+
 	t.Run("Success - Not Found (No Assignments)", func(t *testing.T) {
 		gormDb, mock := setupMockDb(t)
 		repo := data.NewCourseRepo(gormDb)

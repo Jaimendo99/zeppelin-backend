@@ -52,6 +52,20 @@ func (r *courseRepo) GetCoursesByStudent2(studentID string) ([]domain.CourseDbRe
 	return courses, nil
 }
 
+func (r *courseRepo) GetCourse(studentID, courseID string) (*domain.CourseDbRelation, error) {
+	var assignments domain.AssignmentDbRelation
+	result := r.db.Where("user_id = ? AND course_id = ?", studentID, courseID).
+		Preload("Course.Teacher").
+		Preload("Course.CourseContent").
+		Preload("Course.CourseContent.Content").
+		First(&assignments)
+
+	if result.Error != nil {
+		return &domain.CourseDbRelation{}, result.Error
+	}
+	return &assignments.Course, nil
+}
+
 func (r *courseRepo) GetCourseByTeacherAndCourseID(teacherID string, courseID int) (domain.CourseDB, error) {
 	var course domain.CourseDB
 	err := r.db.Where("teacher_id = ? AND course_id = ?", teacherID, courseID).First(&course).Error

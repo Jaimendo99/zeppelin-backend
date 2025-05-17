@@ -18,4 +18,5 @@ func DefineCourseRoutes(e *echo.Echo, authService *services.AuthService, roleMid
 	e.GET("/courses/teacher", courseController.GetCoursesByTeacher(), middleware.RoleMiddleware(authService, "org:teacher"))
 	e.GET("/courses/student", courseController.GetCoursesByStudent(), middleware.RoleMiddleware(authService, "org:student"))
 	e.GET("v2/courses/student", courseController.GetCoursesByStudent2(), middleware.RoleMiddleware(authService, "org:student"))
+	e.GET("/course/:course_id", courseController.GetCourse(), middleware.RoleMiddleware(authService, "org:student"))
 }
