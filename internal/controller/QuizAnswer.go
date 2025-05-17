@@ -335,3 +335,21 @@ func (c *QuizController) gradeQuiz(teacherQuiz domain.TeacherQuiz, studentAnswer
 	fmt.Printf("Puntos Totales Ganados: %f, Puntos Totales Posibles: %d\n", earnedPoints, totalPoints)
 	return earnedPoints, totalPoints
 }
+
+func (c *QuizController) GetQuizAnswersByStudent() echo.HandlerFunc {
+	return func(e echo.Context) error {
+		role := e.Get("user_role").(string)
+		userID := e.Get("user_id").(string)
+
+		if role != "org:student" {
+			return ReturnReadResponse(e, echo.NewHTTPError(403, "Solo los estudiantes pueden ver sus cursos"), nil)
+		}
+
+		courses, err := c.QuizRepo.GetQuizAnswersByStudent(userID)
+		coursesOutput := []domain.QuizAnswerOutput{}
+		for _, course := range courses {
+			coursesOutput = append(coursesOutput, course.ToOutput())
+		}
+		return ReturnReadResponse(e, err, coursesOutput)
+	}
+}

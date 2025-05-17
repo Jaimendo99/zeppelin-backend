@@ -2,8 +2,9 @@ package data
 
 import (
 	"fmt"
-	"gorm.io/gorm"
 	"zeppelin/internal/domain" // Importa tu paquete domain
+
+	"gorm.io/gorm"
 )
 
 // Implementación del QuizRepository
@@ -23,4 +24,15 @@ func (r *quizRepository) SaveQuizAttempt(attempt domain.QuizAnswer) error {
 		return fmt.Errorf("error creating new quiz attempt: %w", err)
 	}
 	return nil
+}
+
+func (r *quizRepository) GetQuizAnswersByStudent(studentID string) ([]domain.QuizAnswerDbRelation, error) {
+	var quizAnswers []domain.QuizAnswerDbRelation
+	result := r.db.Where("user_id = ?", studentID).
+		Preload("Content").
+		Find(&quizAnswers)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return quizAnswers, nil
 }
