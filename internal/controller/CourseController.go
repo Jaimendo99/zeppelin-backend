@@ -3,9 +3,10 @@ package controller
 import (
 	"crypto/rand"
 	"encoding/base32"
-	"github.com/labstack/echo/v4"
 	"strings"
 	"zeppelin/internal/domain"
+
+	"github.com/labstack/echo/v4"
 )
 
 type CourseController struct {
