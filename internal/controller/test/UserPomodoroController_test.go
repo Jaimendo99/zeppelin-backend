@@ -13,26 +13,6 @@ import (
 	"zeppelin/internal/domain"
 )
 
-// MockUserPomodoroRepo defines a mock for the UserPomodoroRepo interface
-type MockUserPomodoroRepo struct {
-	GetByUserIDFn    func(userID string) (*domain.UserPomodoro, error)
-	UpdateByUserIDFn func(userID string, input domain.UpdatePomodoroInput) error
-}
-
-func (m MockUserPomodoroRepo) GetByUserID(userID string) (*domain.UserPomodoro, error) {
-	if m.GetByUserIDFn != nil {
-		return m.GetByUserIDFn(userID)
-	}
-	return nil, errors.New("GetByUserID not implemented")
-}
-
-func (m MockUserPomodoroRepo) UpdateByUserID(userID string, input domain.UpdatePomodoroInput) error {
-	if m.UpdateByUserIDFn != nil {
-		return m.UpdateByUserIDFn(userID, input)
-	}
-	return errors.New("UpdateByUserID not implemented")
-}
-
 func TestGetPomodoroByUserID_Success(t *testing.T) {
 	testUserID := "user-123"
 	mockPomodoro := &domain.UserPomodoro{

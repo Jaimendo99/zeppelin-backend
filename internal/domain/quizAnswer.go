@@ -44,7 +44,7 @@ type TeacherQuizQuestion struct {
 // Interfaz para el Repositorio de Quizzes
 type QuizRepository interface {
 	SaveQuizAttempt(attempt QuizAnswer) error
-	GetQuizAnswersByStudent(studentID string) ([]QuizAnswerDbRelation, error)
+	GetQuizAnswersByStudent(studentID string) ([]QuizSummary, error)
 }
 
 // Struct para la entrada de respuestas del estudiante
@@ -65,8 +65,14 @@ type QuizAnswerDbRelation struct {
 	EndDatime   time.Time  `gorm:"column:end_time"`
 	ReviewedAt  *time.Time `gorm:"column:reviewed_at"`
 	TotalPoints *int       `gorm:"column:total_points"`
+}
 
-	Content ContentDb `gorm:"foreignKey:ContentID;references:ContentID"`
+type QuizSummary struct {
+	ContentID    string     `gorm:"column:content_id"`
+	QuizCount    int        `gorm:"column:quiz_count"`
+	TotalGrade   *float64   `gorm:"column:total_grade"`
+	TotalPoints  *int       `gorm:"column:total_points"`
+	LastQuizTime *time.Time `gorm:"column:last_quiz_time"`
 }
 
 func (QuizAnswerDbRelation) TableName() string {
@@ -84,21 +90,21 @@ type QuizAnswerOutput struct {
 	Content ContentOutput `json:"content"`
 }
 
-func (q QuizAnswerDbRelation) ToOutput() QuizAnswerOutput {
-	return QuizAnswerOutput{
-		QuizAnswerID: q.Id,
-		ContentID:    q.ContentID,
-		StartTime:    q.StartDatime,
-		EndTime:      q.EndDatime,
-		Grade:        q.Grade,
-		ReviewedAt:   q.ReviewedAt,
-		Content: ContentOutput{
-			ContentID:     q.Content.ContentID,
-			ContentTypeID: q.Content.ContentTypeID,
-			Title:         q.Content.Title,
-			Url:           q.Content.Url,
-			Description:   q.Content.Description,
-			SectionIndex:  q.Content.SectionIndex,
-		},
-	}
-}
+// func (q QuizAnswerDbRelation) ToOutput() QuizAnswerOutput {
+// 	return QuizAnswerOutput{
+// 		QuizAnswerID: q.Id,
+// 		ContentID:    q.ContentID,
+// 		StartTime:    q.StartDatime,
+// 		EndTime:      q.EndDatime,
+// 		Grade:        q.Grade,
+// 		ReviewedAt:   q.ReviewedAt,
+// 		Content: ContentOutput{
+// 			ContentID:     q.Content.ContentID,
+// 			ContentTypeID: q.Content.ContentTypeID,
+// 			Title:         q.Content.Title,
+// 			Url:           q.Content.Url,
+// 			Description:   q.Content.Description,
+// 			SectionIndex:  q.Content.SectionIndex,
+// 		},
+// 	}
+// }

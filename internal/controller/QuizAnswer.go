@@ -4,12 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os" // Importa os
+	"os"
 	"strconv"
 	"strings"
 	"time"
-	"zeppelin/internal/config" // Importa tu paquete config
-	"zeppelin/internal/domain" // Importa tu paquete domain
+	"zeppelin/internal/config"
+	"zeppelin/internal/domain"
 
 	"github.com/labstack/echo/v4"
 )
@@ -25,9 +25,15 @@ import (
 // Controlador de Quizzes
 type QuizController struct {
 	QuizRepo          domain.QuizRepository
-	CourseContentRepo domain.CourseContentRepo // Necesitas este para GetContentTypeID y GetContentByContentID
+	CourseContentRepo domain.CourseContentRepo
 	AssignmentRepo    domain.AssignmentRepo
 }
+
+// Variables for testing - these will be overriden in tests
+var (
+	ConfigUploadJSONToR2 = config.UploadJSONToR2
+	ConfigGetR2Object    = config.GetR2Object
+)
 
 func (c *QuizController) SubmitQuiz() echo.HandlerFunc {
 	return func(e echo.Context) error {
@@ -72,7 +78,7 @@ func (c *QuizController) SubmitQuiz() echo.HandlerFunc {
 		accountID := os.Getenv("R2_ACCOUNT_ID") // Obtener el AccountID
 		studentAnswersKey := fmt.Sprintf("focused/%s/quiz/answer/%s/%s.json", accountID, userID, input.ContentID)
 
-		err = config.UploadJSONToR2(studentAnswersKey, studentAnswersJSONBytes) // Usa la función exportada
+		err = ConfigUploadJSONToR2(studentAnswersKey, studentAnswersJSONBytes) // Usa la función exportada
 		if err != nil {
 			return ReturnWriteResponse(e, echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("error al subir respuestas del estudiante a R2: %s", err.Error())), nil)
 		}
@@ -81,7 +87,7 @@ func (c *QuizController) SubmitQuiz() echo.HandlerFunc {
 		studentAnswersURL := fmt.Sprintf("https://%s.r2.cloudflarestorage.com/%s", accountID, studentAnswersKey) // URL directa
 
 		// Obtener el contenido del archivo del quiz del profesor desde R2
-		teacherQuizBytes, err := config.GetR2Object("zeppelin", strings.Replace(Url, fmt.Sprintf("https://%s.r2.cloudflarestorage.com/", accountID), "", 1)) // Eliminar el prefijo de la URL para obtener la key
+		teacherQuizBytes, err := ConfigGetR2Object("zeppelin", strings.Replace(Url, fmt.Sprintf("https://%s.r2.cloudflarestorage.com/", accountID), "", 1)) // Eliminar el prefijo de la URL para obtener la key
 		if err != nil {
 			return ReturnWriteResponse(e, echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("error al obtener el quiz del profesor desde R2: %s", err.Error())), nil)
 		}
@@ -344,12 +350,7 @@ func (c *QuizController) GetQuizAnswersByStudent() echo.HandlerFunc {
 		if role != "org:student" {
 			return ReturnReadResponse(e, echo.NewHTTPError(403, "Solo los estudiantes pueden ver sus cursos"), nil)
 		}
-
 		courses, err := c.QuizRepo.GetQuizAnswersByStudent(userID)
-		coursesOutput := []domain.QuizAnswerOutput{}
-		for _, course := range courses {
-			coursesOutput = append(coursesOutput, course.ToOutput())
-		}
-		return ReturnReadResponse(e, err, coursesOutput)
+		return ReturnReadResponse(e, err, courses)
 	}
 }

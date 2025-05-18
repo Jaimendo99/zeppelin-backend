@@ -1,7 +1,6 @@
 package controller_test
 
 import (
-	"errors"
 	"fmt"
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
@@ -17,93 +16,6 @@ import (
 )
 
 // Mocks
-type MockCourseContentRepo struct {
-	AddModuleT                    func(courseID int, module string, userID string) (int, error)
-	GetContentByCourseT           func(courseID int) ([]domain.CourseContentWithDetails, error)
-	GetContentByCourseForStudentT func(courseID int, userID string) ([]domain.CourseContentWithStudentDetails, error)
-	AddSectionT                   func(input domain.AddSectionInput, userID string) (string, error)
-	UpdateContentT                func(input domain.UpdateContentInput) error
-	UpdateContentStatusT          func(contentID string, isActive bool) error
-	UpdateModuleTitleT            func(courseContentID int, moduleTitle string) error
-	UpdateUserContentStatusT      func(userID, contentID string, statusID int) error
-	GetContentTypeIDT             func(contentID string) (int, error)
-}
-
-func (m MockCourseContentRepo) AddModule(courseID int, module string, userID string) (int, error) {
-	if m.AddModuleT != nil {
-		return m.AddModuleT(courseID, module, userID)
-	}
-	return 0, errors.New("AddModule not implemented")
-}
-
-func (m MockCourseContentRepo) GetContentByCourse(courseID int) ([]domain.CourseContentWithDetails, error) {
-	if m.GetContentByCourseT != nil {
-		return m.GetContentByCourseT(courseID)
-	}
-	return nil, errors.New("GetContentByCourse not implemented")
-}
-
-func (m MockCourseContentRepo) GetContentByCourseForStudent(courseID int, userID string) ([]domain.CourseContentWithStudentDetails, error) {
-	if m.GetContentByCourseForStudentT != nil {
-		return m.GetContentByCourseForStudentT(courseID, userID)
-	}
-	return nil, errors.New("GetContentByCourseForStudent not implemented")
-}
-
-func (m MockCourseContentRepo) AddSection(input domain.AddSectionInput, userID string) (string, error) {
-	if m.AddSectionT != nil {
-		return m.AddSectionT(input, userID)
-	}
-	return "", errors.New("AddSection not implemented")
-}
-
-func (m MockCourseContentRepo) UpdateContent(input domain.UpdateContentInput) error {
-	if m.UpdateContentT != nil {
-		return m.UpdateContentT(input)
-	}
-	return errors.New("UpdateContent not implemented")
-}
-
-func (m MockCourseContentRepo) UpdateContentStatus(contentID string, isActive bool) error {
-	if m.UpdateContentStatusT != nil {
-		return m.UpdateContentStatusT(contentID, isActive)
-	}
-	return errors.New("UpdateContentStatus not implemented")
-}
-
-func (m MockCourseContentRepo) UpdateModuleTitle(courseContentID int, moduleTitle string) error {
-	if m.UpdateModuleTitleT != nil {
-		return m.UpdateModuleTitleT(courseContentID, moduleTitle)
-	}
-	return errors.New("UpdateModuleTitle not implemented")
-}
-
-func (m MockCourseContentRepo) UpdateUserContentStatus(userID, contentID string, statusID int) error {
-	if m.UpdateUserContentStatusT != nil {
-		return m.UpdateUserContentStatusT(userID, contentID, statusID)
-	}
-	return errors.New("UpdateUserContentStatus not implemented")
-}
-
-func (m MockCourseContentRepo) GetContentTypeID(contentID string) (int, error) {
-	if m.GetContentTypeIDT != nil {
-		return m.GetContentTypeIDT(contentID)
-	}
-	return 0, errors.New("GetContentTypeID not implemented")
-}
-
-func (m MockCourseContentRepo) VerifyModuleOwnership(courseContentID int, userID string) error {
-	return errors.New("VerifyModuleOwnership not implemented")
-}
-
-func (m MockCourseContentRepo) CreateContent(input domain.AddSectionInput) (string, error) {
-	return "", errors.New("CreateContent not implemented")
-}
-
-func (m MockCourseContentRepo) GetUrlByContentID(contentID string) (string, error) {
-	return "", errors.New("GetUrlByContentID not implemented")
-}
-
 func TestCourseContentController_AddModule_Success(t *testing.T) {
 	userID := "teacher-123"
 	inputJSON := `{"course_id":1,"module":"New Module"}`
@@ -287,7 +199,8 @@ func mockGeneratePresignedURL(bucket, key string) (string, error) {
 func TestCourseContentController_GetCourseContentTeacher_Success(t *testing.T) {
 	userID := "teacher-123"
 	courseID := 1
-	createdAt := time.Now().Format(time.RFC3339Nano) // Match actual format
+	createdAt := time.Date(2025, 5, 17, 19, 25, 54, 894897000, time.FixedZone("-05:00", -5*60*60)) // Fixed timestamp
+
 	mockContent := []domain.CourseContentWithDetails{
 		{
 			CourseContentDB: domain.CourseContentDB{
@@ -295,9 +208,8 @@ func TestCourseContentController_GetCourseContentTeacher_Success(t *testing.T) {
 				CourseID:        courseID,
 				Module:          "Module 1",
 				ModuleIndex:     1,
-				CreatedAt:       time.Now(),
+				CreatedAt:       createdAt,
 			},
-
 			Details: []domain.Content{
 				{
 					ContentID:       "content-1",
@@ -319,6 +231,7 @@ func TestCourseContentController_GetCourseContentTeacher_Success(t *testing.T) {
 					SectionIndex:    2,
 					IsActive:        true,
 					UserContent:     nil, // Match actual nil value
+					Url:             "https://mock-signed-url.com/focused/1/text/teacher/content-2.json",
 				},
 			},
 		},
@@ -355,7 +268,6 @@ func TestCourseContentController_GetCourseContentTeacher_Success(t *testing.T) {
 	err := handler(c)
 	if assert.NoError(t, err) {
 		assert.Equal(t, http.StatusOK, rec.Code)
-		// Include all fields from actual response
 		expectedJSON := fmt.Sprintf(`[
 			{
 				"contents": null,
@@ -389,7 +301,7 @@ func TestCourseContentController_GetCourseContentTeacher_Success(t *testing.T) {
 					}
 				]
 			}
-		]`, createdAt)
+		]`, createdAt.Format(time.RFC3339Nano))
 		assert.JSONEq(t, expectedJSON, rec.Body.String())
 	}
 }
