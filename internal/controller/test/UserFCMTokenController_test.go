@@ -1,7 +1,6 @@
 package controller_test
 
 import (
-	"errors"
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
@@ -15,49 +14,6 @@ import (
 )
 
 // --- Mock del repositorio ---
-
-type MockUserFcmTokenRepo struct {
-	CreateUserFcmTokenFn        func(token domain.UserFcmTokenDb) error
-	GetUserFcmTokensByUserIDFn  func(userID string) ([]domain.UserFcmTokenDb, error)
-	DeleteUserFcmTokenByTokenFn func(firebaseToken string) error
-	UpdateDeviceInfoFn          func(firebaseToken string, deviceInfo string) error
-	UpdateFirebaseTokenFn       func(userID, deviceType, newToken string) error
-}
-
-func (m MockUserFcmTokenRepo) CreateUserFcmToken(token domain.UserFcmTokenDb) error {
-	if m.CreateUserFcmTokenFn != nil {
-		return m.CreateUserFcmTokenFn(token)
-	}
-	return errors.New("CreateUserFcmToken not implemented")
-}
-
-func (m MockUserFcmTokenRepo) GetUserFcmTokensByUserID(userID string) ([]domain.UserFcmTokenDb, error) {
-	if m.GetUserFcmTokensByUserIDFn != nil {
-		return m.GetUserFcmTokensByUserIDFn(userID)
-	}
-	return nil, errors.New("GetUserFcmTokensByUserID not implemented")
-}
-
-func (m MockUserFcmTokenRepo) DeleteUserFcmTokenByToken(firebaseToken string) error {
-	if m.DeleteUserFcmTokenByTokenFn != nil {
-		return m.DeleteUserFcmTokenByTokenFn(firebaseToken)
-	}
-	return errors.New("DeleteUserFcmTokenByToken not implemented")
-}
-
-func (m MockUserFcmTokenRepo) UpdateDeviceInfo(firebaseToken string, deviceInfo string) error {
-	if m.UpdateDeviceInfoFn != nil {
-		return m.UpdateDeviceInfoFn(firebaseToken, deviceInfo)
-	}
-	return errors.New("UpdateDeviceInfo not implemented")
-}
-
-func (m MockUserFcmTokenRepo) UpdateFirebaseToken(userID string, firebaseToken string, deviceInfo string) error {
-	if m.UpdateFirebaseTokenFn != nil {
-		return m.UpdateFirebaseTokenFn(userID, firebaseToken, deviceInfo)
-	}
-	return errors.New("UpdateDeviceInfo not implemented")
-}
 
 func TestCreateUserFcmToken_Success(t *testing.T) {
 	tokenJSON := `{"firebase_token":"token123","device_type":"MOBILE","device_info":"iPhone 14"}`

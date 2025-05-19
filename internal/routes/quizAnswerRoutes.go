@@ -22,4 +22,5 @@ func DefineQuizAnswerRoutes(e *echo.Echo, authService *services.AuthService, rol
 	}
 
 	e.POST("/quiz/submit", Controller.SubmitQuiz(), middleware.RoleMiddleware(authService, "org:student"))
+	e.GET("/quiz/answers", Controller.GetQuizAnswersByStudent(), middleware.RoleMiddleware(authService, "org:student"))
 }
