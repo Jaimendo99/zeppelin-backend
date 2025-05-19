@@ -349,11 +349,23 @@ func TestGetQuizAnswersByStudent(t *testing.T) {
 					}
 				}
 			} else if tt.expectedQuizCount > 0 {
-				// Success case with data - response should be an array
-				var resp []interface{}
+				// Success case with data - response should be an array of QuizAnswersOutput
+				var resp []domain.QuizAnswersOutput
 				err := json.Unmarshal(rec.Body.Bytes(), &resp)
 				assert.NoError(t, err)
 				assert.Equal(t, tt.expectedQuizCount, len(resp))
+				
+				if len(resp) > 0 {
+					// Verify that the content_id is included
+					assert.Equal(t, "quiz1", resp[0].ContentID)
+					// Verify the total grade matches
+					assert.Equal(t, 85.5, *resp[0].TotalGrade)
+					// Verify the total points
+					assert.Equal(t, 100, *resp[0].TotalPoints)
+					// Verify lastQuizTime is present as Unix milliseconds
+					expectedTime := time.Date(2023, 10, 15, 14, 30, 0, 0, time.UTC).UnixMilli()
+					assert.Equal(t, expectedTime, *resp[0].LastQuizTime)
+				}
 			}
 		})
 	}

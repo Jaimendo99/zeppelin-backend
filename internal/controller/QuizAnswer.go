@@ -351,6 +351,12 @@ func (c *QuizController) GetQuizAnswersByStudent() echo.HandlerFunc {
 			return ReturnReadResponse(e, echo.NewHTTPError(403, "Solo los estudiantes pueden ver sus cursos"), nil)
 		}
 		courses, err := c.QuizRepo.GetQuizAnswersByStudent(userID)
-		return ReturnReadResponse(e, err, courses)
+		coursesOutput := []domain.QuizAnswersOutput{}
+
+		for _, course := range courses {
+			coursesOutput = append(coursesOutput, course.ToOutput())
+		}
+
+		return ReturnReadResponse(e, err, coursesOutput)
 	}
 }

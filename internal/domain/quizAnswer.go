@@ -75,6 +75,23 @@ type QuizSummary struct {
 	LastQuizTime *time.Time `gorm:"column:last_quiz_time"`
 }
 
+type QuizAnswersOutput struct {
+	ContentID    string   `json:"content_id"`
+	TotalGrade   *float64 `json:"total_grade"`
+	TotalPoints  *int     `json:"total_points"`
+	LastQuizTime *int64   `json:"last_quiz_time"`
+}
+
+func (q QuizSummary) ToOutput() QuizAnswersOutput {
+	dateInMiles := q.LastQuizTime.UnixMilli()
+	return QuizAnswersOutput{
+		ContentID:    q.ContentID,
+		TotalGrade:   q.TotalGrade,
+		TotalPoints:  q.TotalPoints,
+		LastQuizTime: &dateInMiles,
+	}
+}
+
 func (QuizAnswerDbRelation) TableName() string {
 	return "quiz_answer"
 }
