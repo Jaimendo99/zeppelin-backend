@@ -24,3 +24,7 @@ func GetFirebaseConn() string {
 func GetClerkConfig() string {
 	return os.Getenv("CLERK_API_KEY")
 }
+
+func GetPort() string {
+	return os.Getenv("PORT")
+}

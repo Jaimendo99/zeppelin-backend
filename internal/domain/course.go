@@ -18,7 +18,6 @@ type CourseInput struct {
 type CourseRepo interface {
 	CreateCourse(course CourseDB) error
 	GetCoursesByTeacher(teacherID string) ([]CourseDB, error)
-	GetCoursesByStudent(studentID string) ([]CourseDB, error)
 	GetCourseByTeacherAndCourseID(teacherID string, courseID int) (CourseDB, error)
 }
 

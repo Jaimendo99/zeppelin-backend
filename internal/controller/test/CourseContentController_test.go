@@ -1,760 +1,221 @@
 package controller_test
 
 import (
-	"encoding/json"
 	"errors"
-	"net/http"
-	"net/http/httptest"
-	"strings"
-	"testing"
-	"time"
-
+	"fmt"
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"strings"
+	"testing"
+	"time"
 	"zeppelin/internal/controller"
 	"zeppelin/internal/domain"
 )
 
-// MockCourseContentRepo mocks CourseContentRepo
+// Mocks
 type MockCourseContentRepo struct {
-	GetContentByCourseF           func(courseID int, onlyActive bool) ([]domain.CourseContentWithDetails, error)
-	CreateVideoF                  func(url, title, description string) (string, error)
-	AddVideoSectionF              func(courseID int, contentID, module string, sectionIndex, moduleIndex int) error
-	CreateQuizF                   func(title, url, description string, jsonContent json.RawMessage) (string, error)
-	AddQuizSectionF               func(courseID int, contentID, module string, sectionIndex, moduleIndex int) error
-	CreateTextF                   func(title, url string, jsonContent json.RawMessage) (string, error)
-	AddTextSectionF               func(courseID int, contentID, module string, sectionIndex, moduleIndex int) error
-	UpdateVideoF                  func(contentID, title, url, description string) error
-	UpdateQuizF                   func(contentID, title, url, description string, jsonContent json.RawMessage) error
-	UpdateTextF                   func(contentID, title, url string, jsonContent json.RawMessage) error
-	UpdateContentStatusF          func(contentID string, isActive bool) error
-	UpdateModuleTitleF            func(courseContentID int, moduleTitle string) error
-	GetContentByCourseForStudentF func(courseID int, isActive bool, userID string) ([]domain.CourseContentWithDetails, error)
-	UpdateUserContentStatusF      func(userID, contentID string, statusID int) error
+	AddModuleT                    func(courseID int, module string, userID string) (int, error)
+	GetContentByCourseT           func(courseID int) ([]domain.CourseContentWithDetails, error)
+	GetContentByCourseForStudentT func(courseID int, userID string) ([]domain.CourseContentWithStudentDetails, error)
+	AddSectionT                   func(input domain.AddSectionInput, userID string) (string, error)
+	UpdateContentT                func(input domain.UpdateContentInput) error
+	UpdateContentStatusT          func(contentID string, isActive bool) error
+	UpdateModuleTitleT            func(courseContentID int, moduleTitle string) error
+	UpdateUserContentStatusT      func(userID, contentID string, statusID int) error
+	GetContentTypeIDT             func(contentID string) (int, error)
 }
 
-func (m MockCourseContentRepo) GetContentByCourse(courseID int, onlyActive bool) ([]domain.CourseContentWithDetails, error) {
-	if m.GetContentByCourseF != nil {
-		return m.GetContentByCourseF(courseID, onlyActive)
+func (m MockCourseContentRepo) AddModule(courseID int, module string, userID string) (int, error) {
+	if m.AddModuleT != nil {
+		return m.AddModuleT(courseID, module, userID)
+	}
+	return 0, errors.New("AddModule not implemented")
+}
+
+func (m MockCourseContentRepo) GetContentByCourse(courseID int) ([]domain.CourseContentWithDetails, error) {
+	if m.GetContentByCourseT != nil {
+		return m.GetContentByCourseT(courseID)
 	}
 	return nil, errors.New("GetContentByCourse not implemented")
 }
 
-func (m MockCourseContentRepo) CreateVideo(url, title, description string) (string, error) {
-	if m.CreateVideoF != nil {
-		return m.CreateVideoF(url, title, description)
+func (m MockCourseContentRepo) GetContentByCourseForStudent(courseID int, userID string) ([]domain.CourseContentWithStudentDetails, error) {
+	if m.GetContentByCourseForStudentT != nil {
+		return m.GetContentByCourseForStudentT(courseID, userID)
 	}
-	return "", errors.New("CreateVideo not implemented")
+	return nil, errors.New("GetContentByCourseForStudent not implemented")
 }
 
-func (m MockCourseContentRepo) AddVideoSection(courseID int, contentID, module string, sectionIndex, moduleIndex int) error {
-	if m.AddVideoSectionF != nil {
-		return m.AddVideoSectionF(courseID, contentID, module, sectionIndex, moduleIndex)
+func (m MockCourseContentRepo) AddSection(input domain.AddSectionInput, userID string) (string, error) {
+	if m.AddSectionT != nil {
+		return m.AddSectionT(input, userID)
 	}
-	return errors.New("AddVideoSection not implemented")
+	return "", errors.New("AddSection not implemented")
 }
 
-func (m MockCourseContentRepo) CreateQuiz(title, url, description string, jsonContent json.RawMessage) (string, error) {
-	if m.CreateQuizF != nil {
-		return m.CreateQuizF(title, url, description, jsonContent)
+func (m MockCourseContentRepo) UpdateContent(input domain.UpdateContentInput) error {
+	if m.UpdateContentT != nil {
+		return m.UpdateContentT(input)
 	}
-	return "", errors.New("CreateQuiz not implemented")
-}
-
-func (m MockCourseContentRepo) AddQuizSection(courseID int, contentID, module string, sectionIndex, moduleIndex int) error {
-	if m.AddQuizSectionF != nil {
-		return m.AddQuizSectionF(courseID, contentID, module, sectionIndex, moduleIndex)
-	}
-	return errors.New("AddQuizSection not implemented")
-}
-
-func (m MockCourseContentRepo) CreateText(title, url string, jsonContent json.RawMessage) (string, error) {
-	if m.CreateTextF != nil {
-		return m.CreateTextF(title, url, jsonContent)
-	}
-	return "", errors.New("CreateText not implemented")
-}
-
-func (m MockCourseContentRepo) AddTextSection(courseID int, contentID, module string, sectionIndex, moduleIndex int) error {
-	if m.AddTextSectionF != nil {
-		return m.AddTextSectionF(courseID, contentID, module, sectionIndex, moduleIndex)
-	}
-	return errors.New("AddTextSection not implemented")
-}
-
-func (m MockCourseContentRepo) UpdateVideo(contentID, title, url, description string) error {
-	if m.UpdateVideoF != nil {
-		return m.UpdateVideoF(contentID, title, url, description)
-	}
-	return errors.New("UpdateVideo not implemented")
-}
-
-func (m MockCourseContentRepo) UpdateQuiz(contentID, title, url, description string, jsonContent json.RawMessage) error {
-	if m.UpdateQuizF != nil {
-		return m.UpdateQuizF(contentID, title, url, description, jsonContent)
-	}
-	return errors.New("UpdateQuiz not implemented")
-}
-
-func (m MockCourseContentRepo) UpdateText(contentID, title, url string, jsonContent json.RawMessage) error {
-	if m.UpdateTextF != nil {
-		return m.UpdateTextF(contentID, title, url, jsonContent)
-	}
-	return errors.New("UpdateText not implemented")
+	return errors.New("UpdateContent not implemented")
 }
 
 func (m MockCourseContentRepo) UpdateContentStatus(contentID string, isActive bool) error {
-	if m.UpdateContentStatusF != nil {
-		return m.UpdateContentStatusF(contentID, isActive)
+	if m.UpdateContentStatusT != nil {
+		return m.UpdateContentStatusT(contentID, isActive)
 	}
 	return errors.New("UpdateContentStatus not implemented")
 }
 
 func (m MockCourseContentRepo) UpdateModuleTitle(courseContentID int, moduleTitle string) error {
-	if m.UpdateModuleTitleF != nil {
-		return m.UpdateModuleTitleF(courseContentID, moduleTitle)
+	if m.UpdateModuleTitleT != nil {
+		return m.UpdateModuleTitleT(courseContentID, moduleTitle)
 	}
 	return errors.New("UpdateModuleTitle not implemented")
 }
 
-func setupContext(e *echo.Echo, req *http.Request, rec *httptest.ResponseRecorder, userID, userRole string) echo.Context {
-	c := e.NewContext(req, rec)
-	c.Set("user_id", userID)
-	if userRole != "" {
-		c.Set("user_role", userRole)
-	}
-	return c
-}
-
-func (m MockCourseContentRepo) GetContentByCourseForStudent(courseID int, isActive bool, userID string) ([]domain.CourseContentWithDetails, error) {
-	if m.GetContentByCourseForStudentF != nil {
-		return m.GetContentByCourseForStudentF(courseID, isActive, userID)
-	}
-	return nil, errors.New("GetContentByCourseForStudent not implemented")
-}
-
 func (m MockCourseContentRepo) UpdateUserContentStatus(userID, contentID string, statusID int) error {
-	if m.UpdateUserContentStatusF != nil {
-		return m.UpdateUserContentStatusF(userID, contentID, statusID)
+	if m.UpdateUserContentStatusT != nil {
+		return m.UpdateUserContentStatusT(userID, contentID, statusID)
 	}
 	return errors.New("UpdateUserContentStatus not implemented")
 }
 
-// --- Tests para CourseContentController ---
+func (m MockCourseContentRepo) GetContentTypeID(contentID string) (int, error) {
+	if m.GetContentTypeIDT != nil {
+		return m.GetContentTypeIDT(contentID)
+	}
+	return 0, errors.New("GetContentTypeID not implemented")
+}
 
-func TestGetCourseContentTeacher_Success(t *testing.T) {
+func (m MockCourseContentRepo) VerifyModuleOwnership(courseContentID int, userID string) error {
+	return errors.New("VerifyModuleOwnership not implemented")
+}
+
+func (m MockCourseContentRepo) CreateContent(input domain.AddSectionInput) (string, error) {
+	return "", errors.New("CreateContent not implemented")
+}
+
+func (m MockCourseContentRepo) GetUrlByContentID(contentID string) (string, error) {
+	return "", errors.New("GetUrlByContentID not implemented")
+}
+
+func TestCourseContentController_AddModule_Success(t *testing.T) {
+	userID := "teacher-123"
+	inputJSON := `{"course_id":1,"module":"New Module"}`
+
 	e := echo.New()
-	req := httptest.NewRequest(http.MethodGet, "/content/teacher?course_id=1", nil)
+	req := httptest.NewRequest(http.MethodPost, "/module", strings.NewReader(inputJSON))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
-	c := setupContext(e, req, rec, "teacher-123", "")
-
-	videoDetails := domain.VideoContent{
-		ContentID:   "video-123",
-		Url:         "https://example.com/video",
-		Title:       "Video 1",
-		Description: "Intro",
-	}
-	quizDetails := domain.QuizContent{
-		ContentID:   "quiz-456",
-		Title:       "Quiz 1",
-		Description: "Test",
-	}
-
-	mockContent := []domain.CourseContentWithDetails{
-		{
-			CourseContentDB: domain.CourseContentDB{
-				CourseContentID: 1,
-				CourseID:        1,
-				ContentID:       "video-123",
-				ContentType:     "video",
-				Module:          "Module 1",
-				SectionIndex:    1,
-				ModuleIndex:     0,
-				IsActive:        true,
-				CreatedAt:       time.Time{},
-			},
-			Details: videoDetails,
-		},
-		{
-			CourseContentDB: domain.CourseContentDB{
-				CourseContentID: 2,
-				CourseID:        1,
-				ContentID:       "quiz-456",
-				ContentType:     "quiz",
-				Module:          "Module 1",
-				SectionIndex:    2,
-				ModuleIndex:     0,
-				IsActive:        false,
-				CreatedAt:       time.Time{},
-			},
-			Details: quizDetails,
-		},
-	}
-
-	mockCourseRepo := MockCourseRepo{
-		GetCourseByTeacherAndCourseIDT: func(teacherID string, courseID int) (domain.CourseDB, error) {
-			assert.Equal(t, "teacher-123", teacherID)
-			assert.Equal(t, 1, courseID)
-			return domain.CourseDB{CourseID: 1}, nil
-		},
-	}
+	c := e.NewContext(req, rec)
+	c.Set("user_id", userID)
+	e.Validator = &CustomValidator{Validator: validator.New()}
 
 	mockContentRepo := MockCourseContentRepo{
-		GetContentByCourseF: func(courseID int, onlyActive bool) ([]domain.CourseContentWithDetails, error) {
+		AddModuleT: func(courseID int, module string, uid string) (int, error) {
 			assert.Equal(t, 1, courseID)
-			assert.False(t, onlyActive) // Teachers get all content
-			return mockContent, nil
+			assert.Equal(t, "New Module", module)
+			assert.Equal(t, userID, uid)
+			return 1, nil
 		},
 	}
 
-	controller := controller.CourseContentController{
-		Repo:       mockContentRepo,
-		RepoCourse: mockCourseRepo,
-	}
-	handler := controller.GetCourseContentTeacher()
+	controller := controller.CourseContentController{Repo: mockContentRepo}
+	handler := controller.AddModule()
 
 	err := handler(c)
 	if assert.NoError(t, err) {
 		assert.Equal(t, http.StatusOK, rec.Code)
-		expectedJSON := `[
-			{
-				"course_content_id": 1,
-				"course_id": 1,
-				"content_id": "video-123",
-				"content_type": "video",
-				"module": "Module 1",
-				"section_index": 1,
-				"module_index": 0,
-				"is_active": true,
-				"created_at": "0001-01-01T00:00:00Z",
-				"Details": {"content_id": "video-123", "url": "https://example.com/video", "title": "Video 1", "description": "Intro"}
-			},
-			{
-				"course_content_id": 2,
-				"course_id": 1,
-				"content_id": "quiz-456",
-				"content_type": "quiz",
-				"module": "Module 1",
-				"section_index": 2,
-				"module_index": 0,
-				"is_active": false,
-				"created_at": "0001-01-01T00:00:00Z",
-				"Details": {"content_id": "quiz-456", "title": "Quiz 1", "description": "Test"}
-			}
-		]`
+		expectedJSON := `{"Body":{"message":"Módulo creado","course_content_id":1,"module":"New Module"}}`
 		assert.JSONEq(t, expectedJSON, rec.Body.String())
 	}
 }
 
-func TestGetCourseContentTeacher_InvalidCourseID(t *testing.T) {
-	e := echo.New()
-	req := httptest.NewRequest(http.MethodGet, "/content/teacher?course_id=invalid", nil)
-	rec := httptest.NewRecorder()
-	c := setupContext(e, req, rec, "teacher-123", "")
+func TestCourseContentController_AddModule_InvalidInput(t *testing.T) {
+	userID := "teacher-123"
+	inputJSON := `{"course_id":0,"module":""}` // Invalid: course_id and module required
 
-	controller := controller.CourseContentController{}
-	handler := controller.GetCourseContentTeacher()
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPost, "/module", strings.NewReader(inputJSON))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set("user_id", userID)
+	e.Validator = &CustomValidator{Validator: validator.New()}
+	e.HTTPErrorHandler = testHTTPErrorHandler
+
+	mockContentRepo := MockCourseContentRepo{}
+
+	controller := controller.CourseContentController{Repo: mockContentRepo}
+	handler := controller.AddModule()
 
 	err := handler(c)
-
-	// 🔥 Aquí verificamos que efectivamente se retorne un error
 	if assert.Error(t, err) {
 		httpErr, ok := err.(*echo.HTTPError)
-		assert.True(t, ok, "Debe retornar un *echo.HTTPError")
-
-		// ✅ Verificamos el código y mensaje esperados
+		assert.True(t, ok)
 		assert.Equal(t, http.StatusBadRequest, httpErr.Code)
-		// El httpErr.Message es un struct { Message interface{} }
-		msgStruct, ok := httpErr.Message.(struct {
-			Message interface{} `json:"message"`
-		})
-		if assert.True(t, ok) {
-			assert.Equal(t, "course_id inválido", msgStruct.Message)
-		}
-
 	}
 }
 
-func TestGetCourseContentTeacher_CourseNotOwned(t *testing.T) {
+func TestCourseContentController_AddSection_Success(t *testing.T) {
+	userID := "teacher-123"
+	inputJSON := `{"course_content_id":1,"content_type_id":1,"title":"New Section","description":"Section desc"}`
+
 	e := echo.New()
-	req := httptest.NewRequest(http.MethodGet, "/content/teacher?course_id=1", nil)
-	rec := httptest.NewRecorder()
-	c := setupContext(e, req, rec, "teacher-123", "")
-
-	mockCourseRepo := MockCourseRepo{
-		GetCourseByTeacherAndCourseIDT: func(teacherID string, courseID int) (domain.CourseDB, error) {
-			return domain.CourseDB{}, errors.New("course not found") // Dispara error esperado
-		},
-	}
-
-	controller := controller.CourseContentController{
-		RepoCourse: mockCourseRepo,
-	}
-	handler := controller.GetCourseContentTeacher()
-
-	err := handler(c)
-
-	// ✅ Validar que se devuelve un *echo.HTTPError con status 403 y el mensaje correcto
-	if assert.Error(t, err) {
-		httpErr, ok := err.(*echo.HTTPError)
-		assert.True(t, ok, "Debe retornar un *echo.HTTPError")
-
-		assert.Equal(t, http.StatusForbidden, httpErr.Code)
-
-		msgStruct, ok := httpErr.Message.(struct {
-			Message interface{} `json:"message"`
-		})
-		if assert.True(t, ok) {
-			assert.Equal(t, "Este curso no le pertenece al profesor", msgStruct.Message)
-		}
-	}
-}
-
-func TestGetCourseContentForStudent_NonStudentRole(t *testing.T) {
-	e := echo.New()
-	req := httptest.NewRequest(http.MethodGet, "/content/student?course_id=1", nil)
-	rec := httptest.NewRecorder()
-	c := setupContext(e, req, rec, "teacher-123", "org:teacher") // Rol incorrecto
-
-	controller := controller.CourseContentController{}
-	handler := controller.GetCourseContentForStudent()
-
-	err := handler(c)
-	assert.NoError(t, err)
-	assert.Equal(t, http.StatusInternalServerError, rec.Code)
-
-	expectedJSON := `{"message": "code=403, message=Solo los estudiantes pueden ver el contenido de los cursos"}`
-	assert.JSONEq(t, expectedJSON, rec.Body.String())
-}
-
-func TestGetCourseContentForStudent_InvalidCourseID(t *testing.T) {
-	e := echo.New()
-	req := httptest.NewRequest(http.MethodGet, "/content/student?course_id=invalid", nil)
-	rec := httptest.NewRecorder()
-	c := setupContext(e, req, rec, "student-123", "org:student")
-
-	controller := controller.CourseContentController{}
-	handler := controller.GetCourseContentForStudent()
-
-	err := handler(c)
-
-	// ✅ El handler devuelve un *echo.HTTPError porque usa ReturnReadResponse
-	if assert.Error(t, err) {
-		httpErr, ok := err.(*echo.HTTPError)
-		assert.True(t, ok, "Debe retornar un *echo.HTTPError")
-
-		assert.Equal(t, http.StatusBadRequest, httpErr.Code)
-
-		msgStruct, ok := httpErr.Message.(struct {
-			Message interface{} `json:"message"`
-		})
-		if assert.True(t, ok) {
-			assert.Equal(t, "course_id inválido", msgStruct.Message)
-		}
-	}
-}
-
-type MockAssignmentRepos struct {
-	GetAssignmentsByStudentAndCourseF func(studentID string, courseID int) (domain.AssignmentWithCourse, error)
-}
-
-func (m *MockAssignmentRepos) CreateAssignment(userID string, courseID int) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *MockAssignmentRepos) VerifyAssignment(assignmentID int) error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *MockAssignmentRepos) GetAssignmentsByStudent(userID string) ([]domain.AssignmentWithCourse, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *MockAssignmentRepos) GetStudentsByCourse(courseID int) ([]domain.AssignmentWithStudent, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *MockAssignmentRepos) GetCourseIDByQRCode(qrCode string) (int, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *MockAssignmentRepos) GetAssignmentsByStudentAndCourse(studentID string, courseID int) (domain.AssignmentWithCourse, error) {
-	if m.GetAssignmentsByStudentAndCourseF != nil {
-		return m.GetAssignmentsByStudentAndCourseF(studentID, courseID)
-	}
-	return domain.AssignmentWithCourse{}, errors.New("GetAssignmentsByStudentAndCourse not implemented")
-}
-
-func TestAddVideoSection_Success(t *testing.T) {
-	videoJSON := `{"url":"https://example.com/video","title":"Video 1","description":"Intro","module":"Module 1","section_index":1,"module_index":0}`
-	e := echo.New()
-	req := httptest.NewRequest(http.MethodPost, "/content/video?course_id=1", strings.NewReader(videoJSON))
+	req := httptest.NewRequest(http.MethodPost, "/section", strings.NewReader(inputJSON))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
+	c.Set("user_id", userID)
 	e.Validator = &CustomValidator{Validator: validator.New()}
 
-	mockRepo := MockCourseContentRepo{
-		CreateVideoF: func(url, title, description string) (string, error) {
-			assert.Equal(t, "https://example.com/video", url)
-			assert.Equal(t, "Video 1", title)
-			assert.Equal(t, "Intro", description)
-			return "video-123", nil
-		},
-		AddVideoSectionF: func(courseID int, contentID, module string, sectionIndex, moduleIndex int) error {
-			assert.Equal(t, 1, courseID)
-			assert.Equal(t, "video-123", contentID)
-			assert.Equal(t, "Module 1", module)
-			assert.Equal(t, 1, sectionIndex)
-			assert.Equal(t, 0, moduleIndex)
-			return nil
+	mockContentRepo := MockCourseContentRepo{
+		AddSectionT: func(input domain.AddSectionInput, uid string) (string, error) {
+			assert.Equal(t, 1, input.CourseContentID)
+			assert.Equal(t, 1, input.ContentTypeID)
+			assert.Equal(t, "New Section", input.Title)
+			assert.Equal(t, "Section desc", input.Description)
+			assert.Equal(t, userID, uid)
+			return "content-123", nil
 		},
 	}
 
-	controller := controller.CourseContentController{Repo: mockRepo}
-	handler := controller.AddVideoSection()
+	controller := controller.CourseContentController{Repo: mockContentRepo}
+	handler := controller.AddSection()
 
 	err := handler(c)
 	if assert.NoError(t, err) {
 		assert.Equal(t, http.StatusOK, rec.Code)
-		expectedJSON := `{"Body":{"message":"Sección de video agregada","content_id":"video-123"}}`
+		expectedJSON := `{"Body":{"message":"Sección agregada","content_id":"content-123","course_content_id":1,"content_type_id":1}}`
 		assert.JSONEq(t, expectedJSON, rec.Body.String())
 	}
 }
 
-func TestAddVideoSection_InvalidCourseID(t *testing.T) {
-	videoJSON := `{"url":"https://example.com/video","title":"Video 1","description":"Intro","module":"Module 1","section_index":1,"module_index":0}`
+func TestCourseContentController_UpdateContentStatus_Success(t *testing.T) {
+	inputJSON := `{"content_id":"content-123","is_active":true}`
+
 	e := echo.New()
-	req := httptest.NewRequest(http.MethodPost, "/content/video?course_id=invalid", strings.NewReader(videoJSON))
+	req := httptest.NewRequest(http.MethodPut, "/content/status", strings.NewReader(inputJSON))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 	e.Validator = &CustomValidator{Validator: validator.New()}
 
-	controller := controller.CourseContentController{}
-	handler := controller.AddVideoSection()
-
-	err := handler(c)
-	if assert.NoError(t, err) {
-		assert.Equal(t, http.StatusInternalServerError, rec.Code) // Or 400 if ReturnWriteResponse is fixed
-		expectedJSON := `{"message": "code=400, message=course_id inválido"}`
-		assert.JSONEq(t, expectedJSON, rec.Body.String())
-	}
-}
-
-func TestAddVideoSection_ValidationError(t *testing.T) {
-	videoJSON := `{"url":"","title":"Video 1","description":"Intro","module":"Module 1","section_index":1,"module_index":0}`
-	e := echo.New()
-	req := httptest.NewRequest(http.MethodPost, "/content/video?course_id=1", strings.NewReader(videoJSON))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	e.Validator = &CustomValidator{Validator: validator.New()}
-
-	controller := controller.CourseContentController{}
-	handler := controller.AddVideoSection()
-
-	err := handler(c)
-
-	if assert.Error(t, err) {
-		httpErr, ok := err.(*echo.HTTPError)
-		assert.True(t, ok, "Debe retornar un *echo.HTTPError")
-		assert.Equal(t, http.StatusBadRequest, httpErr.Code)
-
-		// El mensaje es un mapa[string]string con errores de campo
-		msgMap, ok := httpErr.Message.(map[string]string)
-		if assert.True(t, ok, "Debe retornar un mapa de errores") {
-			assert.Equal(t, "This field is required", msgMap["url"])
-		}
-	}
-}
-
-func TestAddQuizSection_Success(t *testing.T) {
-	quizJSON := `{"title":"Quiz 1","description":"Test","url":"https://example.com/quiz","module":"Module 1","section_index":2,"module_index":1}`
-	e := echo.New()
-	req := httptest.NewRequest(http.MethodPost, "/content/quiz?course_id=1", strings.NewReader(quizJSON))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	e.Validator = &CustomValidator{Validator: validator.New()}
-
-	mockRepo := MockCourseContentRepo{
-		CreateQuizF: func(title, url, description string, jsonContent json.RawMessage) (string, error) {
-			assert.Equal(t, "Quiz 1", title)
-			assert.Equal(t, "https://example.com/quiz", url)
-			assert.Equal(t, "Test", description)
-			assert.Nil(t, jsonContent)
-			return "quiz-456", nil
-		},
-		AddQuizSectionF: func(courseID int, contentID, module string, sectionIndex, moduleIndex int) error {
-			assert.Equal(t, 1, courseID)
-			assert.Equal(t, "quiz-456", contentID)
-			assert.Equal(t, "Module 1", module)
-			assert.Equal(t, 2, sectionIndex)
-			assert.Equal(t, 1, moduleIndex)
-			return nil
-		},
-	}
-
-	controller := controller.CourseContentController{Repo: mockRepo}
-	handler := controller.AddQuizSection()
-
-	err := handler(c)
-	if assert.NoError(t, err) {
-		assert.Equal(t, http.StatusOK, rec.Code)
-		expectedJSON := `{"Body":{"message":"Sección de quiz agregada","content_id":"quiz-456"}}`
-		assert.JSONEq(t, expectedJSON, rec.Body.String())
-	}
-}
-func TestAddQuizSection_CreateQuizError(t *testing.T) {
-	quizJSON := `{"title":"Quiz 1","description":"Test","url":"https://example.com/quiz","module":"Module 1","section_index":2,"module_index":1}`
-	e := echo.New()
-	req := httptest.NewRequest(http.MethodPost, "/content/quiz?course_id=1", strings.NewReader(quizJSON))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	e.Validator = &CustomValidator{Validator: validator.New()}
-
-	repoErr := errors.New("failed to create quiz")
-	mockRepo := MockCourseContentRepo{
-		CreateQuizF: func(title, url, description string, jsonContent json.RawMessage) (string, error) {
-			assert.Equal(t, "Quiz 1", title)
-			assert.Equal(t, "https://example.com/quiz", url)
-			assert.Equal(t, "Test", description)
-			assert.Nil(t, jsonContent)
-			return "", repoErr
-		},
-		AddQuizSectionF: func(courseID int, contentID, module string, sectionIndex, moduleIndex int) error {
-			assert.Fail(t, "AddQuizSection should not be called")
-			return nil
-		},
-	}
-
-	controller := controller.CourseContentController{Repo: mockRepo}
-	handler := controller.AddQuizSection()
-
-	err := handler(c)
-	if assert.NoError(t, err) {
-		assert.Equal(t, http.StatusInternalServerError, rec.Code)
-		expectedJSON := `{"message":"failed to create quiz"}`
-		assert.JSONEq(t, expectedJSON, rec.Body.String())
-	}
-}
-func TestAddTextSection_Success(t *testing.T) {
-	textJSON := `{"title":"Text 1","module":"Module 1","section_index":3,"module_index":2}`
-	e := echo.New()
-	req := httptest.NewRequest(http.MethodPost, "/content/text?course_id=1", strings.NewReader(textJSON))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	e.Validator = &CustomValidator{Validator: validator.New()}
-
-	mockRepo := MockCourseContentRepo{
-		CreateTextF: func(title, url string, jsonContent json.RawMessage) (string, error) {
-			assert.Equal(t, "Text 1", title)
-			assert.Equal(t, "", url)
-			assert.Nil(t, jsonContent)
-			return "text-789", nil
-		},
-		AddTextSectionF: func(courseID int, contentID, module string, sectionIndex, moduleIndex int) error {
-			assert.Equal(t, 1, courseID)
-			assert.Equal(t, "text-789", contentID)
-			assert.Equal(t, "Module 1", module)
-			assert.Equal(t, 3, sectionIndex)
-			assert.Equal(t, 2, moduleIndex)
-			return nil
-		},
-	}
-
-	controller := controller.CourseContentController{Repo: mockRepo}
-	handler := controller.AddTextSection()
-
-	err := handler(c)
-	if assert.NoError(t, err) {
-		assert.Equal(t, http.StatusOK, rec.Code)
-		expectedJSON := `{"Body":{"message":"Sección de texto agregada","content_id":"text-789"}}`
-		assert.JSONEq(t, expectedJSON, rec.Body.String())
-	}
-}
-
-func TestAddTextSection_CreateTextError(t *testing.T) {
-	textJSON := `{"title":"Text 1","module":"Module 1","section_index":3,"module_index":2}`
-	e := echo.New()
-	req := httptest.NewRequest(http.MethodPost, "/content/text?course_id=1", strings.NewReader(textJSON))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	e.Validator = &CustomValidator{Validator: validator.New()}
-
-	repoErr := errors.New("failed to create text")
-	mockRepo := MockCourseContentRepo{
-		CreateTextF: func(title, url string, jsonContent json.RawMessage) (string, error) {
-			return "", repoErr
-		},
-		AddTextSectionF: func(courseID int, contentID, module string, sectionIndex, moduleIndex int) error {
-			assert.Fail(t, "AddTextSection should not be called")
-			return nil
-		},
-	}
-
-	controller := controller.CourseContentController{Repo: mockRepo}
-	handler := controller.AddTextSection()
-
-	err := handler(c)
-	if assert.NoError(t, err) {
-		assert.Equal(t, http.StatusInternalServerError, rec.Code)
-		expectedJSON := `{"message":"failed to create text"}`
-		assert.JSONEq(t, expectedJSON, rec.Body.String())
-	}
-}
-
-func TestUpdateVideoContent_Success(t *testing.T) {
-	videoJSON := `{"content_id":"video-123","title":"Updated Video","url":"https://example.com/updated","description":"Updated Intro"}`
-	e := echo.New()
-	req := httptest.NewRequest(http.MethodPut, "/content/video", strings.NewReader(videoJSON))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	e.Validator = &CustomValidator{Validator: validator.New()}
-
-	mockRepo := MockCourseContentRepo{
-		UpdateVideoF: func(contentID, title, url, description string) error {
-			assert.Equal(t, "video-123", contentID)
-			assert.Equal(t, "Updated Video", title)
-			assert.Equal(t, "https://example.com/updated", url)
-			assert.Equal(t, "Updated Intro", description)
-			return nil
-		},
-	}
-
-	controller := controller.CourseContentController{Repo: mockRepo}
-	handler := controller.UpdateVideoContent()
-
-	err := handler(c)
-	if assert.NoError(t, err) {
-		assert.Equal(t, http.StatusOK, rec.Code)
-		expectedJSON := `{"Body":{"message":"Video actualizado"}}`
-		assert.JSONEq(t, expectedJSON, rec.Body.String())
-	}
-}
-
-func TestUpdateVideoContent_ValidationError(t *testing.T) {
-	videoJSON := `{"content_id":"","title":"Updated Video"}`
-	e := echo.New()
-	req := httptest.NewRequest(http.MethodPut, "/content/video", strings.NewReader(videoJSON))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	e.Validator = &CustomValidator{Validator: validator.New()}
-
-	controller := controller.CourseContentController{}
-	handler := controller.UpdateVideoContent()
-
-	err := handler(c)
-
-	// Esperamos un *echo.HTTPError
-	if assert.Error(t, err) {
-		httpErr, ok := err.(*echo.HTTPError)
-		assert.True(t, ok, "Debe retornar un *echo.HTTPError")
-		assert.Equal(t, http.StatusBadRequest, httpErr.Code)
-
-		msgMap, ok := httpErr.Message.(map[string]string)
-		if assert.True(t, ok, "Debe retornar un mapa de errores de validación") {
-			assert.Equal(t, "This field is required", msgMap["contentid"])
-		}
-	}
-}
-
-func TestUpdateQuizContent_Success(t *testing.T) {
-	quizJSON := `{"content_id":"quiz-456","title":"Updated Quiz","description":"Updated Test","url":"https://example.com/updated-quiz","json_content":{"questions":[{"id":1,"text":"Q1"}]}}`
-	e := echo.New()
-	req := httptest.NewRequest(http.MethodPut, "/content/quiz", strings.NewReader(quizJSON))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	e.Validator = &CustomValidator{Validator: validator.New()}
-
-	var jsonContent json.RawMessage
-	json.Unmarshal([]byte(`{"questions":[{"id":1,"text":"Q1"}]}`), &jsonContent)
-
-	mockRepo := MockCourseContentRepo{
-		UpdateQuizF: func(contentID, title, url, description string, jsonContentArg json.RawMessage) error {
-			assert.Equal(t, "quiz-456", contentID)
-			assert.Equal(t, "Updated Quiz", title)
-			assert.Equal(t, "https://example.com/updated-quiz", url)
-			assert.Equal(t, "Updated Test", description)
-			assert.JSONEq(t, string(jsonContent), string(jsonContentArg))
-			return nil
-		},
-	}
-
-	controller := controller.CourseContentController{Repo: mockRepo}
-	handler := controller.UpdateQuizContent()
-
-	err := handler(c)
-	if assert.NoError(t, err) {
-		assert.Equal(t, http.StatusOK, rec.Code)
-		expectedJSON := `{"Body":{"message":"Quiz actualizado"}}`
-		assert.JSONEq(t, expectedJSON, rec.Body.String())
-	}
-}
-func TestUpdateTextContent_Success(t *testing.T) {
-	textJSON := `{"content_id":"text-789","title":"Updated Text","url":"https://example.com/text","json_content":{"content":"Updated content"}}`
-	e := echo.New()
-	req := httptest.NewRequest(http.MethodPut, "/content/text", strings.NewReader(textJSON))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	e.Validator = &CustomValidator{Validator: validator.New()}
-
-	var jsonContent json.RawMessage
-	json.Unmarshal([]byte(`{"content":"Updated content"}`), &jsonContent)
-
-	mockRepo := MockCourseContentRepo{
-		UpdateTextF: func(contentID, title, url string, jsonContentArg json.RawMessage) error {
-			assert.Equal(t, "text-789", contentID)
-			assert.Equal(t, "Updated Text", title)
-			assert.Equal(t, "https://example.com/text", url)
-			assert.JSONEq(t, string(jsonContent), string(jsonContentArg))
-			return nil
-		},
-	}
-
-	controller := controller.CourseContentController{Repo: mockRepo}
-	handler := controller.UpdateTextContent()
-
-	err := handler(c)
-	if assert.NoError(t, err) {
-		assert.Equal(t, http.StatusOK, rec.Code)
-		expectedJSON := `{"Body":{"message":"Texto actualizado"}}`
-		assert.JSONEq(t, expectedJSON, rec.Body.String())
-	}
-}
-
-func TestUpdateContentStatus_Success(t *testing.T) {
-	statusJSON := `{"content_id":"content-123","is_active":true}`
-	e := echo.New()
-	req := httptest.NewRequest(http.MethodPut, "/content/status", strings.NewReader(statusJSON))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	e.Validator = &CustomValidator{Validator: validator.New()}
-
-	mockRepo := MockCourseContentRepo{
-		UpdateContentStatusF: func(contentID string, isActive bool) error {
+	mockContentRepo := MockCourseContentRepo{
+		UpdateContentStatusT: func(contentID string, isActive bool) error {
 			assert.Equal(t, "content-123", contentID)
 			assert.True(t, isActive)
 			return nil
 		},
 	}
 
-	controller := controller.CourseContentController{Repo: mockRepo}
+	controller := controller.CourseContentController{Repo: mockContentRepo}
 	handler := controller.UpdateContentStatus()
 
 	err := handler(c)
@@ -765,24 +226,49 @@ func TestUpdateContentStatus_Success(t *testing.T) {
 	}
 }
 
-func TestUpdateModuleTitle_Success(t *testing.T) {
-	moduleJSON := `{"course_content_id":1,"module_title":"Updated Module"}`
+func TestCourseContentController_UpdateContentStatus_InvalidInput(t *testing.T) {
+	inputJSON := `{"content_id":""}` // Missing content_id
+
 	e := echo.New()
-	req := httptest.NewRequest(http.MethodPut, "/content/module", strings.NewReader(moduleJSON))
+	req := httptest.NewRequest(http.MethodPut, "/content/status", strings.NewReader(inputJSON))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	e.Validator = &CustomValidator{Validator: validator.New()}
+	e.HTTPErrorHandler = testHTTPErrorHandler
+
+	mockContentRepo := MockCourseContentRepo{}
+
+	controller := controller.CourseContentController{Repo: mockContentRepo}
+	handler := controller.UpdateContentStatus()
+
+	err := handler(c)
+	if assert.Error(t, err) {
+		httpErr, ok := err.(*echo.HTTPError)
+		assert.True(t, ok)
+		assert.Equal(t, http.StatusBadRequest, httpErr.Code)
+	}
+}
+
+func TestCourseContentController_UpdateModuleTitle_Success(t *testing.T) {
+	inputJSON := `{"course_content_id":1,"module_title":"Updated Module"}`
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPut, "/module", strings.NewReader(inputJSON))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 	e.Validator = &CustomValidator{Validator: validator.New()}
 
-	mockRepo := MockCourseContentRepo{
-		UpdateModuleTitleF: func(courseContentID int, moduleTitle string) error {
+	mockContentRepo := MockCourseContentRepo{
+		UpdateModuleTitleT: func(courseContentID int, moduleTitle string) error {
 			assert.Equal(t, 1, courseContentID)
 			assert.Equal(t, "Updated Module", moduleTitle)
 			return nil
 		},
 	}
 
-	controller := controller.CourseContentController{Repo: mockRepo}
+	controller := controller.CourseContentController{Repo: mockContentRepo}
 	handler := controller.UpdateModuleTitle()
 
 	err := handler(c)
@@ -793,201 +279,740 @@ func TestUpdateModuleTitle_Success(t *testing.T) {
 	}
 }
 
-func TestUpdateModuleTitle_ValidationError(t *testing.T) {
-	moduleJSON := `{"course_content_id":0,"module_title":""}`
+// Mock GeneratePresignedURL
+func mockGeneratePresignedURL(bucket, key string) (string, error) {
+	return "https://mock-signed-url.com/" + key, nil
+}
+
+// Tests
+func TestCourseContentController_GetCourseContentTeacher_Success(t *testing.T) {
+	userID := "teacher-123"
+	courseID := 1
+	createdAt := time.Now().Format(time.RFC3339Nano) // Match actual format
+	mockContent := []domain.CourseContentWithDetails{
+		{
+			CourseContentDB: domain.CourseContentDB{
+				CourseContentID: 1,
+				CourseID:        courseID,
+				Module:          "Module 1",
+				ModuleIndex:     1,
+				CreatedAt:       time.Now(),
+			},
+
+			Details: []domain.Content{
+				{
+					ContentID:       "content-1",
+					CourseContentID: 1,
+					ContentTypeID:   1, // Video
+					Title:           "Video 1",
+					Url:             "http://original-video.com",
+					Description:     "Video desc",
+					SectionIndex:    1,
+					IsActive:        true,
+					UserContent:     nil, // Match actual nil value
+				},
+				{
+					ContentID:       "content-2",
+					CourseContentID: 1,
+					ContentTypeID:   2, // Quiz
+					Title:           "Quiz 1",
+					Description:     "Quiz desc",
+					SectionIndex:    2,
+					IsActive:        true,
+					UserContent:     nil, // Match actual nil value
+				},
+			},
+		},
+	}
+
 	e := echo.New()
-	req := httptest.NewRequest(http.MethodPut, "/content/module", strings.NewReader(moduleJSON))
+	req := httptest.NewRequest(http.MethodGet, "/content?course_id=1", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set("user_id", userID)
+
+	mockCourseRepo := MockCourseRepo{
+		GetCourseByTeacherAndCourseIDT: func(teacherID string, cid int) (domain.CourseDB, error) {
+			assert.Equal(t, userID, teacherID)
+			assert.Equal(t, courseID, cid)
+			return domain.CourseDB{CourseID: courseID, TeacherID: userID}, nil
+		},
+	}
+
+	mockContentRepo := MockCourseContentRepo{
+		GetContentByCourseT: func(cid int) ([]domain.CourseContentWithDetails, error) {
+			assert.Equal(t, courseID, cid)
+			return mockContent, nil
+		},
+	}
+
+	controller := controller.CourseContentController{
+		Repo:                 mockContentRepo,
+		RepoCourse:           mockCourseRepo,
+		GeneratePresignedURL: mockGeneratePresignedURL, // Inject mock
+	}
+	handler := controller.GetCourseContentTeacher()
+
+	err := handler(c)
+	if assert.NoError(t, err) {
+		assert.Equal(t, http.StatusOK, rec.Code)
+		// Include all fields from actual response
+		expectedJSON := fmt.Sprintf(`[
+			{
+				"contents": null,
+				"course_content_id": 1,
+				"course_id": 1,
+				"created_at": "%s",
+				"module": "Module 1",
+				"module_index": 1,
+				"details": [
+					{
+						"UserContent": null,
+						"content_id": "content-1",
+						"course_content_id": 1,
+						"content_type_id": 1,
+						"title": "Video 1",
+						"url": "http://original-video.com",
+						"description": "Video desc",
+						"section_index": 1,
+						"is_active": true
+					},
+					{
+						"UserContent": null,
+						"content_id": "content-2",
+						"course_content_id": 1,
+						"content_type_id": 2,
+						"title": "Quiz 1",
+						"url": "https://mock-signed-url.com/focused/1/text/teacher/content-2.json",
+						"description": "Quiz desc",
+						"section_index": 2,
+						"is_active": true
+					}
+				]
+			}
+		]`, createdAt)
+		assert.JSONEq(t, expectedJSON, rec.Body.String())
+	}
+}
+
+func TestCourseContentController_GetCourseContentTeacher_InvalidCourseID(t *testing.T) {
+	userID := "teacher-123"
+
+	// Test case 1: Missing course_id query parameter
+	t.Run("Missing CourseID", func(t *testing.T) {
+		// Assuming 'e', 'c', and 'rec' are created here by your test setup
+		e := echo.New() // Replace with your actual setup call if needed
+		req := httptest.NewRequest(http.MethodGet, "/content", nil)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		e.Validator = &CustomValidator{Validator: validator.New()} // Assuming these are available
+		e.HTTPErrorHandler = testHTTPErrorHandler                  // Assuming this is available
+
+		c.Set("user_id", userID) // Set user ID
+
+		// Create the controller with minimal mocks (they won't be called in this error path)
+		controller := controller.CourseContentController{
+			Repo:       MockCourseContentRepo{}, // Use zero value or mock
+			RepoCourse: MockCourseRepo{},
+			// GeneratePresignedURL not strictly needed for this error path
+		}
+		handler := controller.GetCourseContentTeacher()
+
+		err := handler(c)
+
+		// Assert that an HTTPError is returned
+		require.Error(t, err)
+		httpErr, ok := err.(*echo.HTTPError)
+		require.True(t, ok)
+
+		// Assert the status code
+		assert.Equal(t, http.StatusBadRequest, httpErr.Code)
+
+		// *** Corrected Assertion for the error message ***
+		// The error message is a struct with a 'Message' field
+		// We need to assert that the Message field of the HTTPError's Message (which is a struct)
+		// contains the expected string.
+		errMsgStruct, ok := httpErr.Message.(struct {
+			Message interface{} "json:\"message\""
+		})
+		require.True(t, ok, "Expected HTTPError.Message to be a struct with a Message field")
+		assert.Equal(t, "course_id inválido", errMsgStruct.Message)
+
+		// Assert the response recorder status code if your error handler sets it
+		// assert.Equal(t, http.StatusBadRequest, rec.Code) // Uncomment if your error handler sets rec.Code
+	})
+
+	// Test case 2: Non-integer course_id query parameter
+	t.Run("Non-Integer CourseID", func(t *testing.T) {
+		// Assuming 'e', 'c', and 'rec' are created here by your test setup
+		e := echo.New() // Replace with your actual setup call if needed
+		req := httptest.NewRequest(http.MethodGet, "/content?course_id=abc", nil)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		e.Validator = &CustomValidator{Validator: validator.New()} // Assuming these are available
+		e.HTTPErrorHandler = testHTTPErrorHandler                  // Assuming this is available
+
+		c.Set("user_id", userID) // Set user ID
+
+		// Create the controller with minimal mocks
+		controller := controller.CourseContentController{
+			Repo:       MockCourseContentRepo{},
+			RepoCourse: MockCourseRepo{},
+		}
+		handler := controller.GetCourseContentTeacher()
+
+		err := handler(c)
+
+		// Assert that an HTTPError is returned
+		require.Error(t, err)
+		httpErr, ok := err.(*echo.HTTPError)
+		require.True(t, ok)
+
+		// Assert the status code
+		assert.Equal(t, http.StatusBadRequest, httpErr.Code)
+
+		// *** Corrected Assertion for the error message ***
+		// The error message is a struct with a 'Message' field
+		// We need to assert that the Message field of the HTTPError's Message (which is a struct)
+		// contains the expected string.
+		errMsgStruct, ok := httpErr.Message.(struct {
+			Message interface{} "json:\"message\""
+		})
+		require.True(t, ok, "Expected HTTPError.Message to be a struct with a Message field")
+		assert.Equal(t, "course_id inválido", errMsgStruct.Message)
+
+		// Assert the response recorder status code if your error handler sets it
+		// assert.Equal(t, http.StatusBadRequest, rec.Code) // Uncomment if your error handler sets rec.Code
+	})
+
+	// Add more cases if other invalid formats are possible
+}
+
+func mockGeneratePresignedURLWithError(bucket, key string) (string, error) {
+	// Simulate an error when a specific key is requested
+	if key == "focused/1/text/teacher/content-2.json" { // Example key that will fail
+		return "", errors.New("mock R2 presigned URL error")
+	}
+	// Default success for other keys
+	return "https://mock-signed-url.com/" + key, nil
+}
+
+func TestCourseContentController_GetCourseContentTeacher_Forbidden(t *testing.T) {
+	userID := "intruder-123" // A user who is NOT the teacher
+	courseID := 1
+
+	// Assuming 'e', 'c', and 'rec' are created here by your test setup
+	e := echo.New() // Replace with your actual setup call if needed
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/content?course_id=%d", courseID), nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	e.Validator = &CustomValidator{Validator: validator.New()}
+	e.HTTPErrorHandler = testHTTPErrorHandler
+
+	c.Set("user_id", userID) // Set the intruder's user ID
+
+	// Configure MockCourseRepo to indicate the course does NOT belong to the intruder
+	mockCourseRepo := MockCourseRepo{
+		GetCourseByTeacherAndCourseIDT: func(inputTeacherID string, cid int) (domain.CourseDB, error) {
+			assert.Equal(t, userID, inputTeacherID) // The controller will pass the intruder's ID
+			assert.Equal(t, courseID, cid)
+			// Simulate that the course is not found for this teacher, indicating forbidden access
+			return domain.CourseDB{}, errors.New("course does not belong to the teacher") // Match the expected error string
+		},
+	}
+
+	// MockContentRepo and GeneratePresignedURL won't be called in this error path
+	mockContentRepo := MockCourseContentRepo{}
+
+	controller := controller.CourseContentController{
+		Repo:       mockContentRepo,
+		RepoCourse: mockCourseRepo,
+		// GeneratePresignedURL doesn't matter for this test
+	}
+	handler := controller.GetCourseContentTeacher()
+
+	err := handler(c)
+
+	// Assert that an HTTPError is returned due to forbidden access
+	require.Error(t, err)
+	httpErr, ok := err.(*echo.HTTPError)
+	require.True(t, ok)
+
+	// Assert the status code
+	assert.Equal(t, http.StatusForbidden, httpErr.Code)
+
+	// Assert the error message structure
+	errMsgStruct, ok := httpErr.Message.(struct {
+		Message interface{} "json:\"message\""
+	})
+	require.True(t, ok, "Expected HTTPError.Message to be a struct with a Message field")
+	assert.Equal(t, "Este curso no le pertenece al profesor", errMsgStruct.Message) // Match the exact error message from the controller
+
+}
+func TestCourseContentController_GetCourseContentTeacher_GeneratePresignedURLError(t *testing.T) {
+	userID := "teacher-123"
+	courseID := 1
+	// Define mock content that will trigger a GeneratePresignedURL call
+	mockContent := []domain.CourseContentWithDetails{
+		{
+			CourseContentDB: domain.CourseContentDB{
+				CourseContentID: 1,
+				CourseID:        courseID,
+				Module:          "Module 1",
+				ModuleIndex:     1,
+				CreatedAt:       time.Now(),
+			},
+			Details: []domain.Content{
+				{
+					ContentID:       "content-1",
+					CourseContentID: 1,
+					ContentTypeID:   1, // Video (should not need presigned URL)
+					Title:           "Video 1",
+					Url:             "http://original-video.com",
+					Description:     "Video desc",
+					SectionIndex:    1,
+					IsActive:        true,
+				},
+				{
+					ContentID:       "content-2",
+					CourseContentID: 1,
+					ContentTypeID:   2, // Quiz (should need presigned URL) - This one will error
+					Title:           "Quiz 1",
+					Description:     "Quiz desc",
+					SectionIndex:    2,
+					IsActive:        true,
+				},
+			},
+		},
+	}
+
+	// Assuming 'e', 'c', and 'rec' are created here by your test setup
+	e := echo.New() // Replace with your actual setup call if needed
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/content?course_id=%d", courseID), nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	e.Validator = &CustomValidator{Validator: validator.New()} // Assuming these are available
+	e.HTTPErrorHandler = testHTTPErrorHandler                  // Assuming this is available
+
+	c.Set("user_id", userID) // Set user ID
+
+	// Configure mock repositories to return data that leads to the error
+	mockCourseRepo := MockCourseRepo{
+		GetCourseByTeacherAndCourseIDT: func(teacherID string, cid int) (domain.CourseDB, error) {
+			assert.Equal(t, userID, teacherID)
+			assert.Equal(t, courseID, cid)
+			return domain.CourseDB{CourseID: courseID, TeacherID: userID}, nil
+		},
+	}
+
+	mockContentRepo := MockCourseContentRepo{
+		GetContentByCourseT: func(cid int) ([]domain.CourseContentWithDetails, error) {
+			assert.Equal(t, courseID, cid)
+			return mockContent, nil
+		},
+		// Other methods of MockCourseContentRepo are not expected to be called in this specific test
+	}
+
+	controller := controller.CourseContentController{
+		Repo:                 mockContentRepo,
+		RepoCourse:           mockCourseRepo,
+		GeneratePresignedURL: mockGeneratePresignedURLWithError, // Inject the mock that returns an error
+	}
+	handler := controller.GetCourseContentTeacher()
+
+	err := handler(c)
+
+	// Assert that an HTTPError is returned due to the GeneratePresignedURL error
+	require.Error(t, err)
+	httpErr, ok := err.(*echo.HTTPError)
+	require.True(t, ok)
+
+	// Assert the status code
+	assert.Equal(t, http.StatusInternalServerError, httpErr.Code)
+
+	// Assert the error message structure returned by ReturnReadResponse
+	errMsgStruct, ok := httpErr.Message.(struct {
+		Message interface{} "json:\"message\""
+	})
+	require.True(t, ok, "Expected HTTPError.Message to be a struct with a Message field")
+
+	// Check that the error message contains the expected formatted string
+	expectedErrMsg := fmt.Sprintf("error al generar URL firmada para content_type_id %d", 2) // ContentTypeID that failed
+	assert.Equal(t, expectedErrMsg, errMsgStruct.Message)
+
+}
+
+func TestCourseContentController_UpdateContent_Success_Text(t *testing.T) {
+	inputJSON := `{
+		"course_id": 1,
+		"content_id": "content-123",
+		"json_data": {"key":"value"}
+	}`
+
+	os.Setenv("R2_ACCOUNT_ID", "test-account") // Simula variable de entorno
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPut, "/course-content", strings.NewReader(inputJSON))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 	e.Validator = &CustomValidator{Validator: validator.New()}
 
-	controller := controller.CourseContentController{}
-	handler := controller.UpdateModuleTitle()
+	mockRepo := MockCourseContentRepo{
+		GetContentTypeIDT: func(contentID string) (int, error) {
+			assert.Equal(t, "content-123", contentID)
+			return 2, nil // Texto
+		},
+		UpdateContentT: func(input domain.UpdateContentInput) error {
+			assert.Equal(t, "https://test-account.r2.cloudflarestorage.com/focused/1/text/teacher/content-123.json", input.Url)
+			return nil
+		},
+	}
+
+	mockUpload := func(courseID, contentID string, json []byte) error {
+		assert.Equal(t, "1", courseID)
+		assert.Equal(t, "content-123", contentID)
+		assert.JSONEq(t, `{"key":"value"}`, string(json))
+		return nil
+	}
+
+	controller := controller.CourseContentController{
+		Repo:           mockRepo,
+		UploadTextFunc: mockUpload,
+	}
+
+	handler := controller.UpdateContent()
 
 	err := handler(c)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
 
-	// ✅ Validamos que retorne error de validación
-	if assert.Error(t, err) {
-		httpErr, ok := err.(*echo.HTTPError)
-		assert.True(t, ok, "Debe retornar un *echo.HTTPError")
-		assert.Equal(t, http.StatusBadRequest, httpErr.Code)
-
-		msgMap, ok := httpErr.Message.(map[string]string)
-		if assert.True(t, ok, "Debe ser un mapa de errores de validación") {
-			assert.Equal(t, "This field is required", msgMap["coursecontentid"])
-			assert.Equal(t, "This field is required", msgMap["moduletitle"])
-		}
-	}
+	expected := `{"Body":{"message":"Contenido actualizado"}}`
+	assert.JSONEq(t, expected, rec.Body.String())
 }
 
-func TestGetCourseContentForStudent_Success(t *testing.T) {
-	e := echo.New()
-	req := httptest.NewRequest(http.MethodGet, "/content/student?course_id=1", nil)
-	rec := httptest.NewRecorder()
-	c := setupContext(e, req, rec, "student-123", "org:student")
+func TestCourseContentController_UpdateContent_Success_Quiz(t *testing.T) {
+	inputJSON := `{
+		"course_id": 1,
+		"content_id": "content-123",
+		"json_data": {"key":"value"}
+	}`
 
-	mockContent := []domain.CourseContentWithDetails{
-		{
-			CourseContentDB: domain.CourseContentDB{
-				CourseContentID: 1,
-				CourseID:        1,
-				ContentID:       "content-001",
-				ContentType:     "video",
-				Module:          "Module 1",
-				SectionIndex:    0,
-				ModuleIndex:     0,
-				IsActive:        true,
-				CreatedAt:       time.Now(),
-			},
-			Details:  nil,
-			StatusID: intPtr(2),
-		},
-	}
+	os.Setenv("R2_ACCOUNT_ID", "test-account") // Simula variable de entorno
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPut, "/course-content", strings.NewReader(inputJSON))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	e.Validator = &CustomValidator{Validator: validator.New()}
 
 	mockRepo := MockCourseContentRepo{
-		GetContentByCourseForStudentF: func(courseID int, onlyActive bool, userID string) ([]domain.CourseContentWithDetails, error) {
-			assert.Equal(t, 1, courseID)
-			assert.True(t, onlyActive)
-			assert.Equal(t, "student-123", userID)
-			return mockContent, nil
+		GetContentTypeIDT: func(contentID string) (int, error) {
+			assert.Equal(t, "content-123", contentID)
+			return 3, nil
+		},
+		UpdateContentT: func(input domain.UpdateContentInput) error {
+			assert.Equal(t, "https://test-account.r2.cloudflarestorage.com/focused/1/quiz/teacher/content-123.json", input.Url)
+			return nil
 		},
 	}
 
-	mockAssignment := &MockAssignmentRepos{
-		GetAssignmentsByStudentAndCourseF: func(studentID string, courseID int) (domain.AssignmentWithCourse, error) {
-			assert.Equal(t, "student-123", studentID)
-			assert.Equal(t, 1, courseID)
-			return domain.AssignmentWithCourse{}, nil
+	mockUploadQuiz := func(courseID, contentID string, json []byte) error {
+		assert.Equal(t, "1", courseID)
+		assert.Equal(t, "content-123", contentID)
+		assert.JSONEq(t, `{"key":"value"}`, string(json))
+		return nil
+	}
+
+	controller := controller.CourseContentController{
+		Repo:           mockRepo,
+		UploadQuizFunc: mockUploadQuiz,
+	}
+
+	handler := controller.UpdateContent()
+
+	err := handler(c)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	expected := `{"Body":{"message":"Contenido actualizado"}}`
+	assert.JSONEq(t, expected, rec.Body.String())
+}
+
+func TestCourseContentController_UpdateContent_Success_Video(t *testing.T) {
+	inputJSON := `{
+		"course_id": 1,
+		"content_id": "video-789",
+		"video_id": "https://video.url/123"
+	}`
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPut, "/course-content", strings.NewReader(inputJSON))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	e.Validator = &CustomValidator{Validator: validator.New()}
+
+	mockRepo := MockCourseContentRepo{
+		GetContentTypeIDT: func(contentID string) (int, error) {
+			return 1, nil // Video
+		},
+		UpdateContentT: func(input domain.UpdateContentInput) error {
+			assert.Equal(t, "https://video.url/123", input.Url)
+			return nil
 		},
 	}
 
 	controller := controller.CourseContentController{
-		Repo:          mockRepo,
-		RepoAssigment: mockAssignment,
+		Repo: mockRepo,
+	}
+
+	handler := controller.UpdateContent()
+
+	err := handler(c)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), "Contenido actualizado")
+}
+
+type MockAssignmentRepoLocal struct {
+	GetAssignmentsByStudentAndCourseFn func(userID string, courseID int) (domain.AssignmentWithCourse, error)
+}
+
+func (m MockAssignmentRepoLocal) CreateAssignment(userID string, courseID int) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m MockAssignmentRepoLocal) VerifyAssignment(assignmentID int) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m MockAssignmentRepoLocal) GetAssignmentsByStudent(userID string) ([]domain.AssignmentWithCourse, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m MockAssignmentRepoLocal) GetStudentsByCourse(courseID int) ([]domain.AssignmentWithStudent, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m MockAssignmentRepoLocal) GetCourseIDByQRCode(qrCode string) (int, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m MockAssignmentRepoLocal) GetAssignmentsByStudentAndCourse(userID string, courseID int) (domain.AssignmentWithCourse, error) {
+	if m.GetAssignmentsByStudentAndCourseFn != nil {
+		return m.GetAssignmentsByStudentAndCourseFn(userID, courseID)
+	}
+	return domain.AssignmentWithCourse{}, errors.New("not implemented")
+}
+
+func TestCourseContentController_GetCourseContentForStudent_Success(t *testing.T) {
+	userID := "student-123"
+	courseID := 1
+	role := "org:student"
+
+	mockContent := []domain.CourseContentWithStudentDetails{
+		{
+			CourseContentID: 1,
+			CourseID:        courseID,
+			Module:          "Módulo 1",
+			ModuleIndex:     0,
+			CreatedAt:       time.Now(),
+			Details: []domain.ContentWithStatus{
+				{
+					ContentID:       "content-1",
+					CourseContentID: 1,
+					ContentTypeID:   2, // Quiz → debería generar URL con /text/teacher/
+					Title:           "Quiz 1",
+					Description:     "Desc",
+					SectionIndex:    1,
+					IsActive:        true,
+				},
+				{
+					ContentID:       "content-2",
+					CourseContentID: 1,
+					ContentTypeID:   3, // Text → debería generar URL con /quiz/student/
+					Title:           "Texto 1",
+					Description:     "Desc",
+					SectionIndex:    2,
+					IsActive:        true,
+				},
+			},
+		},
+	}
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/course-content/student?course_id=1", nil)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set("user_id", userID)
+	c.Set("user_role", role)
+	os.Setenv("BOURBON", "0") // para que solo 'org:student' tenga acceso
+
+	mockRepo := MockCourseContentRepo{
+		GetContentByCourseForStudentT: func(cid int, uid string) ([]domain.CourseContentWithStudentDetails, error) {
+			assert.Equal(t, courseID, cid)
+			assert.Equal(t, userID, uid)
+			return mockContent, nil
+		},
+	}
+
+	mockAssignmentRepo := MockAssignmentRepoLocal{
+		GetAssignmentsByStudentAndCourseFn: func(uid string, cid int) (domain.AssignmentWithCourse, error) {
+			assert.Equal(t, userID, uid)
+			assert.Equal(t, courseID, cid)
+			return domain.AssignmentWithCourse{}, nil // simulamos asignación válida
+		},
+	}
+
+	mockPresigned := func(bucket, key string) (string, error) {
+		return "https://signed-url/" + key, nil
+	}
+
+	controller := controller.CourseContentController{
+		Repo:                 mockRepo,
+		RepoAssigment:        mockAssignmentRepo,
+		GeneratePresignedURL: mockPresigned,
 	}
 
 	handler := controller.GetCourseContentForStudent()
-
 	err := handler(c)
-	if assert.NoError(t, err) {
-		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.Contains(t, rec.Body.String(), `"status_id":2`)
-		assert.Contains(t, rec.Body.String(), `"content_id":"content-001"`)
-	}
+
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	// Validamos que el cuerpo tenga las URLs firmadas correctamente
+	assert.Contains(t, rec.Body.String(), "https://signed-url/focused/1/text/teacher/content-1.json")
+	assert.Contains(t, rec.Body.String(), "https://signed-url/focused/1/quiz/student/content-2.json")
 }
 
-func intPtr(i int) *int {
-	return &i
-}
+func TestCourseContentController_UpdateUserContentStatus_Success(t *testing.T) {
+	userID := "student-123"
+	inputJSON := `{"content_id":"content-abc"}`
 
-func TestUpdateUserContentStatusHandler(t *testing.T) {
 	e := echo.New()
+	req := httptest.NewRequest(http.MethodPut, "/user-content-status", strings.NewReader(inputJSON))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set("user_id", userID)
 	e.Validator = &CustomValidator{Validator: validator.New()}
 
 	mockRepo := MockCourseContentRepo{
-		UpdateUserContentStatusF: func(userID, contentID string, statusID int) error {
-			assert.Equal(t, "student-123", userID)
-			assert.Equal(t, "content-001", contentID)
-			assert.True(t, statusID == 2 || statusID == 3)
+		UpdateUserContentStatusT: func(uid, contentID string, statusID int) error {
+			assert.Equal(t, userID, uid)
+			assert.Equal(t, "content-abc", contentID)
+			assert.Equal(t, 3, statusID)
 			return nil
 		},
 	}
 
 	controller := controller.CourseContentController{Repo: mockRepo}
-
-	cases := []struct {
-		path         string
-		expectedMsg  string
-		expectedCode int
-	}{
-		{"/in-progress", "Contenido marcado como 'en progreso'", http.StatusOK},
-		{"/completed", "Contenido marcado como 'completado'", http.StatusOK},
-	}
-
-	for _, tc := range cases {
-		t.Run(strings.Title(strings.TrimPrefix(tc.path, "/")), func(t *testing.T) {
-			body := `{"content_id":"content-001"}`
-			req := httptest.NewRequest(http.MethodPost, tc.path, strings.NewReader(body))
-			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-			rec := httptest.NewRecorder()
-
-			c := e.NewContext(req, rec)
-			c.Set("user_id", "student-123")
-
-			var handler echo.HandlerFunc
-			if tc.path == "/in-progress" {
-				handler = controller.UpdateUserContentStatus(2)
-			} else {
-				handler = controller.UpdateUserContentStatus(3)
-			}
-
-			err := handler(c)
-			if assert.NoError(t, err) {
-				assert.Equal(t, tc.expectedCode, rec.Code)
-
-				var responseBody map[string]interface{}
-				err := json.Unmarshal(rec.Body.Bytes(), &responseBody)
-				assert.NoError(t, err)
-
-				expected := map[string]interface{}{
-					"Body": map[string]interface{}{
-						"message": tc.expectedMsg,
-					},
-				}
-
-				assert.Equal(t, expected, responseBody)
-			}
-		})
-	}
-}
-
-func TestUpdateUserContentStatusHandler_ValidationError(t *testing.T) {
-	e := echo.New()
-	req := httptest.NewRequest(http.MethodPost, "/course-content/in-progress", strings.NewReader(`{}`))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-	rec := httptest.NewRecorder()
-	c := e.NewContext(req, rec)
-	c.Set("user_id", "student-001")
-	e.Validator = &CustomValidator{Validator: validator.New()}
-
-	controller := controller.CourseContentController{}
-	handler := controller.UpdateUserContentStatus(2)
+	handler := controller.UpdateUserContentStatus(3) // statusID = 3 (completado)
 
 	err := handler(c)
-	if assert.Error(t, err) {
-		httpErr, ok := err.(*echo.HTTPError)
-		assert.True(t, ok)
-		assert.Equal(t, http.StatusBadRequest, httpErr.Code)
-
-		msgMap, ok := httpErr.Message.(map[string]string)
-		if assert.True(t, ok) {
-			assert.Equal(t, "This field is required", msgMap["contentid"])
-		}
-	}
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	expected := `{"Body":{"message":"Contenido marcado como 'completado'"}}`
+	assert.JSONEq(t, expected, rec.Body.String())
 }
 
-func TestUpdateUserContentStatusHandler_ErrorFromRepo(t *testing.T) {
+func TestCourseContentController_UpdateUserContentStatus_InvalidInput(t *testing.T) {
+	inputJSON := `{}` // Falta content_id
+
 	e := echo.New()
-	req := httptest.NewRequest(http.MethodPost, "/course-content/in-progress", strings.NewReader(`{"content_id": "abc123"}`))
+	req := httptest.NewRequest(http.MethodPut, "/user-content-status", strings.NewReader(inputJSON))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	c.Set("user_id", "student-001")
+	c.Set("user_id", "student-123")
+	e.Validator = &CustomValidator{Validator: validator.New()}
+	e.HTTPErrorHandler = testHTTPErrorHandler // para capturar errores personalizados
+
+	mockRepo := MockCourseContentRepo{}
+
+	controller := controller.CourseContentController{Repo: mockRepo}
+	handler := controller.UpdateUserContentStatus(2) // estado 'en progreso'
+
+	err := handler(c)
+
+	require.Error(t, err)
+	httpErr, ok := err.(*echo.HTTPError)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusBadRequest, httpErr.Code)
+}
+
+func TestCourseContentController_UpdateUserContentStatus_RepoError(t *testing.T) {
+	inputJSON := `{"content_id":"content-err"}`
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodPut, "/user-content-status", strings.NewReader(inputJSON))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+	c.Set("user_id", "student-123")
 	e.Validator = &CustomValidator{Validator: validator.New()}
 
 	mockRepo := MockCourseContentRepo{
-		UpdateUserContentStatusF: func(userID, contentID string, statusID int) error {
-			return errors.New("failed to update status")
+		UpdateUserContentStatusT: func(uid, cid string, statusID int) error {
+			return errors.New("falló el repo")
 		},
 	}
 
 	controller := controller.CourseContentController{Repo: mockRepo}
-	handler := controller.UpdateUserContentStatus(2)
+	handler := controller.UpdateUserContentStatus(3) // estado 'completado'
 
 	err := handler(c)
-	if assert.NoError(t, err) {
-		assert.Equal(t, http.StatusInternalServerError, rec.Code)
-		assert.JSONEq(t, `{"message":"failed to update status"}`, rec.Body.String())
+
+	require.NoError(t, err) // porque ReturnWriteResponse maneja el error internamente
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.Contains(t, rec.Body.String(), `"message":"falló el repo"`)
+}
+
+func TestCourseContentController_UpdateUserContentStatus_AllCases(t *testing.T) {
+	tests := []struct {
+		name        string
+		statusID    int
+		expectedMsg string
+	}{
+		{"Case 2 - en progreso", 2, "Contenido marcado como 'en progreso'"},
+		{"Case 3 - completado", 3, "Contenido marcado como 'completado'"},
+		{"Default case", 9, "Estado actualizado"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inputJSON := `{"content_id":"content-123"}`
+			e := echo.New()
+			req := httptest.NewRequest(http.MethodPut, "/user-content-status", strings.NewReader(inputJSON))
+			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+			rec := httptest.NewRecorder()
+			c := e.NewContext(req, rec)
+			c.Set("user_id", "student-123")
+			e.Validator = &CustomValidator{Validator: validator.New()}
+
+			mockRepo := MockCourseContentRepo{
+				UpdateUserContentStatusT: func(uid, cid string, statusID int) error {
+					assert.Equal(t, "student-123", uid)
+					assert.Equal(t, "content-123", cid)
+					assert.Equal(t, tt.statusID, statusID)
+					return nil
+				},
+			}
+
+			controller := controller.CourseContentController{Repo: mockRepo}
+			handler := controller.UpdateUserContentStatus(tt.statusID)
+
+			err := handler(c)
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusOK, rec.Code)
+			assert.Contains(t, rec.Body.String(), tt.expectedMsg)
+		})
 	}
 }

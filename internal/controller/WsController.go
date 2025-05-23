@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"sync"
 	"time"
+	"zeppelin/internal/domain"
 
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
@@ -32,11 +33,13 @@ type ConnectionManager struct {
 	// Key is userID:courseId
 	userConnections map[string][]UserConn
 	mutex           sync.Mutex
+	SessionRepo     domain.SessionRepo
 }
 
-func NewConnectionManager() *ConnectionManager {
+func NewConnectionManager(sessionRepo domain.SessionRepo) *ConnectionManager {
 	return &ConnectionManager{
 		userConnections: make(map[string][]UserConn),
+		SessionRepo:     sessionRepo,
 	}
 }
 
@@ -230,17 +233,17 @@ func (cm *ConnectionManager) WebSocketHandler() echo.HandlerFunc {
 	}
 }
 
-func (cm *ConnectionManager) readPump(logger echo.Logger, userID, courseId, platform string, conn *websocket.Conn) { // Added courseId
-	connKey := userID + ":" + courseId // Created connKey
+func (cm *ConnectionManager) readPump(logger echo.Logger, userID, courseId, platform string, conn *websocket.Conn) {
+	connKey := userID + ":" + courseId
 
 	defer func() {
-		logger.Infof("User %s (Course %s, Platform %s): Cleaning up connection.", userID, courseId, platform) // Updated log
-		othersRemain := cm.removeConnection(logger, userID, courseId, conn)                                   // Passed courseId
+		logger.Infof("User %s (Course %s, Platform %s): Cleaning up connection.", userID, courseId, platform)
+		othersRemain := cm.removeConnection(logger, userID, courseId, conn)
 		if othersRemain {
-			cm.sendStatusUpdate(logger, userID, courseId) // Passed courseId
+			cm.sendStatusUpdate(logger, userID, courseId)
 		}
 		_ = conn.Close()
-		logger.Infof("User %s (Course %s, Platform %s): Connection cleanup finished.", userID, courseId, platform) // Updated log
+		logger.Infof("User %s (Course %s, Platform %s): Connection cleanup finished.", userID, courseId, platform)
 	}()
 
 	for {
@@ -248,17 +251,116 @@ func (cm *ConnectionManager) readPump(logger echo.Logger, userID, courseId, plat
 		if err != nil {
 			var e *websocket.CloseError
 			if errors.As(err, &e) && (e.Code == websocket.CloseNormalClosure || e.Code == websocket.CloseGoingAway || e.Code == websocket.CloseAbnormalClosure) {
-				logger.Infof("User %s (Course %s, Platform %s): WebSocket closed normally (code %d).", userID, courseId, platform, e.Code) // Updated log
+				logger.Infof("User %s (Course %s, Platform %s): WebSocket closed normally (code %d).", userID, courseId, platform, e.Code)
 			} else {
-				logger.Warnf("User %s (Course %s, Platform %s): Error reading message: %v", userID, courseId, platform, err) // Updated log
+				logger.Warnf("User %s (Course %s, Platform %s): Error reading message: %v", userID, courseId, platform, err)
 			}
 			break
 		}
 
-		logger.Infof("User %s (Course %s, Platform %s): Received message (type %d): %s", userID, courseId, platform, msgType, string(message)) // Updated log
+		logger.Infof("User %s (Course %s, Platform %s): Received message (type %d): %s", userID, courseId, platform, msgType, string(message))
 
+		// Only process text messages
+		if msgType != websocket.TextMessage {
+			continue
+		}
+
+		// Parse the message to determine action
+		var msg struct {
+			Type      string                 `json:"type"`
+			Config    map[string]interface{} `json:"config"`
+			SenderId  string                 `json:"senderId"`
+			StartedAt int64                  `json:"startedAt"`
+			SessionId int                    `json:"session_id"`
+		}
+		if err := json.Unmarshal(message, &msg); err != nil {
+			logger.Warnf("User %s (Course %s, Platform %s): Failed to parse message: %v", userID, courseId, platform, err)
+			continue
+		}
+
+		// Message to broadcast (default to original message)
+		broadcastMessage := message
+
+		// Handle specific message types
+		switch msg.Type {
+		case "pomodoro_start":
+			logger.Infof("User %s (Course %s, Platform %s): Starting Pomodoro session", userID, courseId, platform)
+			// Start a new session
+			sessionID, err := cm.SessionRepo.StartSession(userID)
+			if err != nil {
+				logger.Errorf("User %s (Course %s, Platform %s): Failed to start session: %v", userID, courseId, platform, err)
+				// Send error back to client
+				errorMsg := map[string]interface{}{
+					"type":  "error",
+					"error": "Failed to start session",
+				}
+				errorData, _ := json.Marshal(errorMsg)
+				_ = conn.WriteMessage(websocket.TextMessage, errorData)
+			} else {
+				logger.Infof("User %s (Course %s, Platform %s): Started session with ID %d", userID, courseId, platform, sessionID)
+				// Send session ID back to client
+				response := map[string]interface{}{
+					"type":       "session_started",
+					"session_id": sessionID,
+				}
+				responseData, _ := json.Marshal(response)
+				if err := conn.WriteMessage(websocket.TextMessage, responseData); err != nil {
+					logger.Warnf("User %s (Course %s, Platform %s): Failed to send session start response: %v", userID, courseId, platform, err)
+				}
+				// Update broadcast message with session_id
+				broadcastMsg := map[string]interface{}{
+					"type":       msg.Type,
+					"config":     msg.Config,
+					"senderId":   msg.SenderId,
+					"startedAt":  msg.StartedAt,
+					"session_id": sessionID,
+				}
+				broadcastMessage, _ = json.Marshal(broadcastMsg)
+			}
+
+		case "pomodoro_session_end":
+			// Use sessionId from the message
+			if msg.SessionId == 0 {
+				logger.Errorf("User %s (Course %s, Platform %s): No session_id provided in pomodoro_session_end message", userID, courseId, platform)
+				errorMsg := map[string]interface{}{
+					"type":  "error",
+					"error": "No session_id provided",
+				}
+				errorData, _ := json.Marshal(errorMsg)
+				_ = conn.WriteMessage(websocket.TextMessage, errorData)
+			} else {
+				// End the session
+				if err := cm.SessionRepo.EndSession(msg.SessionId); err != nil {
+					logger.Errorf("User %s (Course %s, Platform %s): Failed to end session %d: %v", userID, courseId, platform, msg.SessionId, err)
+					errorMsg := map[string]interface{}{
+						"type":  "error",
+						"error": "Failed to end session",
+					}
+					errorData, _ := json.Marshal(errorMsg)
+					_ = conn.WriteMessage(websocket.TextMessage, errorData)
+				} else {
+					logger.Infof("User %s (Course %s, Platform %s): Ended session %d", userID, courseId, platform, msg.SessionId)
+					// Send confirmation back to client
+					response := map[string]interface{}{
+						"type":       "session_ended",
+						"session_id": msg.SessionId,
+					}
+					responseData, _ := json.Marshal(response)
+					if err := conn.WriteMessage(websocket.TextMessage, responseData); err != nil {
+						logger.Warnf("User %s (Course %s, Platform %s): Failed to send session end response: %v", userID, courseId, platform, err)
+					}
+					// Use original message for broadcast (already includes session_id)
+					broadcastMessage = message
+				}
+			}
+
+		default:
+			// No specific action for other message types (e.g., pomodoro_phase_end, pomodoro_extend); broadcast original message
+		}
+
+		// Broadcast the message to connections
 		cm.mutex.Lock()
-		conns, exists := cm.userConnections[connKey] // Used connKey
+		conns, exists := cm.userConnections[connKey]
 		cm.mutex.Unlock()
 
 		if !exists {
@@ -266,15 +368,20 @@ func (cm *ConnectionManager) readPump(logger echo.Logger, userID, courseId, plat
 		}
 
 		for _, uc := range conns {
-			if uc.Conn != conn {
-				if err := uc.Conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
-					logger.Warnf("User %s (Course %s, Platform %s): Broadcast - Failed to set write deadline for target %s: %v", userID, courseId, platform, uc.Platform, err) // Updated log
-				}
-				if err := uc.Conn.WriteMessage(msgType, message); err != nil {
-					logger.Warnf("User %s (Course %s, Platform %s): Failed to broadcast message to target %s: %v", userID, courseId, platform, uc.Platform, err) // Updated log
-				}
-				_ = uc.Conn.SetWriteDeadline(time.Time{})
+			// For pomodoro_start, broadcast to all connections (including sender)
+			// For other messages, broadcast only to other connections (exclude sender)
+			if msg.Type != "pomodoro_start" && uc.Conn == conn {
+				logger.Infof("User %s (Course %s, Platform %s): Skipping broadcast to sender (%s) for message type %s", userID, courseId, platform, uc.Platform, msg.Type)
+				continue
 			}
+			logger.Infof("User %s (Course %s, Platform %s): Broadcasting message (type %s) to platform %s", userID, courseId, platform, msg.Type, uc.Platform)
+			if err := uc.Conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+				logger.Warnf("User %s (Course %s, Platform %s): Broadcast - Failed to set write deadline for target %s: %v", userID, courseId, platform, uc.Platform, err)
+			}
+			if err := uc.Conn.WriteMessage(msgType, broadcastMessage); err != nil {
+				logger.Warnf("User %s (Course %s, Platform %s): Failed to broadcast message to target %s: %v", userID, courseId, platform, uc.Platform, err)
+			}
+			_ = uc.Conn.SetWriteDeadline(time.Time{})
 		}
 	}
 }

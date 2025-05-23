@@ -1,6 +1,10 @@
 package main
 
 import (
+	"context"
+	"fmt"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"log"
 	"zeppelin/internal/config"
 	"zeppelin/internal/controller"
@@ -35,6 +39,23 @@ func init() {
 	config.InitSmtp(config.GetSmtpPassword())
 	if err := config.CheckSmtpAuth(config.GetSmtpConfig()); err != nil {
 		log.Fatalf("error authenticating smtp: %v", err)
+	}
+
+	err := config.InitR2()
+	if err != nil {
+		log.Fatalf("Error al inicializar R2: %v", err)
+	}
+
+	// Usar el cliente para listar objetos
+	output, err := config.R2Client.ListObjectsV2(context.TODO(), &s3.ListObjectsV2Input{
+		Bucket: aws.String("zeppelin"),
+	})
+	if err != nil {
+		log.Fatalf("Error al listar objetos: %v", err)
+	}
+
+	for _, obj := range output.Contents {
+		fmt.Println("Archivo:", *obj.Key)
 	}
 }
 
@@ -73,6 +94,7 @@ func main() {
 	routes.DefineAuthRoutes(e, auth.Clerk, roleMiddlewareProvider)
 	routes.DefineUserFcmTokenRoutes(e, auth, roleMiddlewareProvider)
 	routes.DefinePomodoroRoutes(e, auth, roleMiddlewareProvider)
+	routes.DefineQuizAnswerRoutes(e, auth, roleMiddlewareProvider)
 	defer func(MQConn config.AmqpConnection) {
 		err := MQConn.Close()
 		if err != nil {
@@ -80,6 +102,10 @@ func main() {
 		}
 	}(config.MQConn)
 
-	e.Logger.Error(e.Start("0.0.0.0:3000"))
+	port := config.GetPort()
+	if port == "" {
+		port = "3000"
+	}
+	e.Logger.Error(e.Start("0.0.0.0:" + port))
 
 }
