@@ -108,15 +108,20 @@ func GeneratePresignedURL(bucket, key string) (string, error) {
 }
 
 func UploadJSONToR2(key string, jsonBytes []byte) error {
+	fmt.Printf("Subiendo JSON a R2: %s\n", key)
+
 	if R2Client == nil {
+		fmt.Println("⚠️ R2Client está en NIL dentro de UploadJSONToR2")
 		return fmt.Errorf("R2 no inicializado")
 	}
+
+	fmt.Printf("✅ R2Client existe en memoria: %p\n", R2Client)
 
 	_, err := R2Client.PutObject(context.TODO(), &s3.PutObjectInput{
 		Bucket:      aws.String("zeppelin"),
 		Key:         aws.String(key),
 		Body:        bytes.NewReader(jsonBytes),
-		ContentType: aws.String("application/json"), // Esto es importante
+		ContentType: aws.String("application/json"),
 		ACL:         "private",
 	})
 

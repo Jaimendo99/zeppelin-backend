@@ -53,5 +53,3 @@ type StudentQuizAnswersInput struct {
 	EndTime   time.Time              `json:"end_time" validate:"required"`
 	Answers   map[string]interface{} `json:"answers" validate:"required"` // Mapa de pregunta_id a respuesta(s)
 }
-
-// Aquí puedes añadir otras interfaces o structs relacionados con quizzes si son necesarios en domain

@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"zeppelin/internal/config" // Importa tu paquete config
 	"zeppelin/internal/domain" // Importa tu paquete domain
 
 	"github.com/labstack/echo/v4"
@@ -24,9 +23,11 @@ import (
 
 // Controlador de Quizzes
 type QuizController struct {
-	QuizRepo          domain.QuizRepository
-	CourseContentRepo domain.CourseContentRepo // Necesitas este para GetContentTypeID y GetContentByContentID
-	AssignmentRepo    domain.AssignmentRepo
+	QuizRepo              domain.QuizRepository
+	CourseContentRepo     domain.CourseContentRepo // Necesitas este para GetContentTypeID y GetContentByContentID
+	AssignmentRepo        domain.AssignmentRepo
+	UploadStudentAnswers  func(key string, data []byte) error
+	GetTeacherQuizContent func(bucket, key string) ([]byte, error)
 }
 
 func (c *QuizController) SubmitQuiz() echo.HandlerFunc {
@@ -42,8 +43,13 @@ func (c *QuizController) SubmitQuiz() echo.HandlerFunc {
 		if err != nil {
 			return ReturnWriteResponse(e, echo.NewHTTPError(http.StatusNotFound, fmt.Sprintf("contenido con ID %s no encontrado", input.ContentID)), nil)
 		}
-		courseID := strings.Split(Url, "/")[2]
-		courseIDInt, err := strconv.Atoi(courseID)
+		//Imprimer el URL
+		parts := strings.SplitN(Url, "/focused/", 2)
+		if len(parts) < 2 {
+			return ReturnWriteResponse(e, echo.NewHTTPError(http.StatusInternalServerError, "URL malformada"), nil)
+		}
+		subparts := strings.Split(parts[1], "/")
+		courseIDInt, err := strconv.Atoi(subparts[0])
 
 		// 1. Verificar que el estudiante está asignado a este curso
 		_, err = c.AssignmentRepo.GetAssignmentsByStudentAndCourse(userID, courseIDInt)
@@ -71,8 +77,7 @@ func (c *QuizController) SubmitQuiz() echo.HandlerFunc {
 		// Ajustamos la key para seguir tu convención de ruta
 		accountID := os.Getenv("R2_ACCOUNT_ID") // Obtener el AccountID
 		studentAnswersKey := fmt.Sprintf("focused/%s/quiz/answer/%s/%s.json", accountID, userID, input.ContentID)
-
-		err = config.UploadJSONToR2(studentAnswersKey, studentAnswersJSONBytes) // Usa la función exportada
+		err = c.UploadStudentAnswers(studentAnswersKey, studentAnswersJSONBytes) // Usa la función exportada
 		if err != nil {
 			return ReturnWriteResponse(e, echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("error al subir respuestas del estudiante a R2: %s", err.Error())), nil)
 		}
@@ -81,7 +86,7 @@ func (c *QuizController) SubmitQuiz() echo.HandlerFunc {
 		studentAnswersURL := fmt.Sprintf("https://%s.r2.cloudflarestorage.com/%s", accountID, studentAnswersKey) // URL directa
 
 		// Obtener el contenido del archivo del quiz del profesor desde R2
-		teacherQuizBytes, err := config.GetR2Object("zeppelin", strings.Replace(Url, fmt.Sprintf("https://%s.r2.cloudflarestorage.com/", accountID), "", 1)) // Eliminar el prefijo de la URL para obtener la key
+		teacherQuizBytes, err := c.GetTeacherQuizContent("zeppelin", strings.Replace(Url, fmt.Sprintf("https://%s.r2.cloudflarestorage.com/", accountID), "", 1)) // Eliminar el prefijo de la URL para obtener la key
 		if err != nil {
 			return ReturnWriteResponse(e, echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("error al obtener el quiz del profesor desde R2: %s", err.Error())), nil)
 		}
@@ -92,7 +97,7 @@ func (c *QuizController) SubmitQuiz() echo.HandlerFunc {
 		}
 
 		// 6. Calificar el quiz
-		score, totalPoints := c.gradeQuiz(teacherQuiz, input.Answers)
+		score, totalPoints := c.GradeQuiz(teacherQuiz, input.Answers)
 
 		// 7. Determinar el estado de revisión (`reviewed_at`)
 		needsReview := false
@@ -141,84 +146,35 @@ func (c *QuizController) SubmitQuiz() echo.HandlerFunc {
 	}
 }
 
-func (c *QuizController) gradeQuiz(teacherQuiz domain.TeacherQuiz, studentAnswers map[string]interface{}) (float64, int) {
+func (c *QuizController) GradeQuiz(teacherQuiz domain.TeacherQuiz, studentAnswers map[string]interface{}) (float64, int) {
 	earnedPoints := 0.0
 	totalPoints := 0
 
-	fmt.Println("--- INICIO CALIFICACIÓN ---")
-	fmt.Printf("Student Answers: %+v\n", studentAnswers)
-
 	for _, question := range teacherQuiz.Questions {
 		totalPoints += question.Points
-		fmt.Printf("\n--- Pregunta ID: %s, Tipo: %s, Puntos: %d ---\n", question.ID, question.Type, question.Points)
-		fmt.Printf("Question.CorrectAnswer: %+v (Tipo: %T)\n", question.CorrectAnswer, question.CorrectAnswer)
-		if len(question.CorrectAnswers) > 0 {
-			fmt.Printf("Question.CorrectAnswers: %+v\n", question.CorrectAnswers)
-		}
 
-		studentAnswer, ok := studentAnswers[question.ID]
-		if !ok {
-			fmt.Printf("DEBUG: Pregunta %s NO respondida por el estudiante.\n", question.ID)
-			continue
-		}
-		if studentAnswer == nil {
-			fmt.Printf("DEBUG: Pregunta %s tiene respuesta NULA del estudiante.\n", question.ID)
-			continue
-		}
-		fmt.Printf("Student Answer para %s: %+v (Tipo: %T)\n", question.ID, studentAnswer, studentAnswer)
+		studentAnswer := studentAnswers[question.ID]
 
 		switch question.Type {
 		case "text":
-			correctAnswer, typeOk := question.CorrectAnswer.(string)
-			if !typeOk {
-				fmt.Printf("DEBUG TEXT: question.CorrectAnswer no es string. Es: %T\n", question.CorrectAnswer)
-				continue
-			}
-			studentAnswerStr, typeOk := studentAnswer.(string)
-			if !typeOk {
-				fmt.Printf("DEBUG TEXT: studentAnswer no es string. Es: %T\n", studentAnswer)
-				continue
-			}
-			fmt.Printf("DEBUG TEXT: Comparando '%s' (estudiante) con '%s' (correcta) después de trim/lower.\n", strings.ToLower(strings.TrimSpace(studentAnswerStr)), strings.ToLower(strings.TrimSpace(correctAnswer)))
+			correctAnswer := question.CorrectAnswer.(string)
+
+			studentAnswerStr := studentAnswer.(string)
+
 			if strings.ToLower(strings.TrimSpace(studentAnswerStr)) == strings.ToLower(strings.TrimSpace(correctAnswer)) {
 				earnedPoints += float64(question.Points)
-				fmt.Printf("DEBUG TEXT: ¡CORRECTO! Puntos ganados: %d\n", question.Points)
-			} else {
-				fmt.Printf("DEBUG TEXT: Incorrecto.\n")
 			}
-
 		case "multiple":
-			correctAnswer, typeOk := question.CorrectAnswer.(string)
-			if !typeOk {
-				fmt.Printf("DEBUG MULTIPLE: question.CorrectAnswer no es string. Es: %T\n", question.CorrectAnswer)
-				continue
-			}
-			studentAnswerStr, typeOk := studentAnswer.(string)
-			if !typeOk {
-				fmt.Printf("DEBUG MULTIPLE: studentAnswer no es string. Es: %T\n", studentAnswer)
-				continue
-			}
-			fmt.Printf("DEBUG MULTIPLE: Comparando '%s' (estudiante) con '%s' (correcta).\n", studentAnswerStr, correctAnswer)
+			correctAnswer := question.CorrectAnswer.(string)
+			studentAnswerStr := studentAnswer.(string)
+
 			if studentAnswerStr == correctAnswer {
 				earnedPoints += float64(question.Points)
-				fmt.Printf("DEBUG MULTIPLE: ¡CORRECTO! Puntos ganados: %d\n", question.Points)
-			} else {
-				fmt.Printf("DEBUG MULTIPLE: Incorrecto.\n")
 			}
-
 		case "checkbox":
 			correctAnswers := question.CorrectAnswers
-			if len(correctAnswers) == 0 {
-				fmt.Printf("DEBUG CHECKBOX: No hay respuestas correctas definidas para la pregunta %s.\n", question.ID)
-				continue
-			}
-			fmt.Printf("DEBUG CHECKBOX: CorrectAnswers: %+v\n", correctAnswers)
 
-			studentSelectedInterface, typeOk := studentAnswer.([]interface{})
-			if !typeOk {
-				fmt.Printf("DEBUG CHECKBOX: studentAnswer no es []interface{}. Es: %T\n", studentAnswer)
-				continue
-			}
+			studentSelectedInterface := studentAnswer.([]interface{})
 
 			studentSelectedStrings := make([]string, 0, len(studentSelectedInterface))
 			validStudentAnswers := true
@@ -235,7 +191,6 @@ func (c *QuizController) gradeQuiz(teacherQuiz domain.TeacherQuiz, studentAnswer
 			if !validStudentAnswers {
 				continue
 			}
-			fmt.Printf("DEBUG CHECKBOX: StudentSelectedStrings: %+v\n", studentSelectedStrings)
 
 			if len(studentSelectedStrings) == len(correctAnswers) {
 				correctMap := make(map[string]bool)
@@ -254,7 +209,6 @@ func (c *QuizController) gradeQuiz(teacherQuiz domain.TeacherQuiz, studentAnswer
 					for key := range correctMap {
 						if _, found := studentMap[key]; !found {
 							isCorrect = false
-							fmt.Printf("DEBUG CHECKBOX: Falta la respuesta correcta '%s' en las respuestas del estudiante.\n", key)
 							break
 						}
 					}
@@ -263,12 +217,7 @@ func (c *QuizController) gradeQuiz(teacherQuiz domain.TeacherQuiz, studentAnswer
 
 				if isCorrect {
 					earnedPoints += float64(question.Points)
-					fmt.Printf("DEBUG CHECKBOX: ¡CORRECTO! Puntos ganados: %d\n", question.Points)
-				} else {
-					fmt.Printf("DEBUG CHECKBOX: Incorrecto (diferencias en selecciones o cantidad).\n")
 				}
-			} else {
-				fmt.Printf("DEBUG CHECKBOX: Incorrecto (diferente cantidad de selecciones. Estudiante: %d, Correctas: %d).\n", len(studentSelectedStrings), len(correctAnswers))
 			}
 
 		case "boolean":
@@ -278,20 +227,16 @@ func (c *QuizController) gradeQuiz(teacherQuiz domain.TeacherQuiz, studentAnswer
 			// Intentar interpretar question.CorrectAnswer
 			if val, ok := question.CorrectAnswer.(bool); ok {
 				expectedBoolValue = val
-				fmt.Printf("DEBUG BOOLEAN: question.CorrectAnswer es bool: %t\n", val)
 			} else if valStr, ok := question.CorrectAnswer.(string); ok {
-				fmt.Printf("DEBUG BOOLEAN: question.CorrectAnswer es string: '%s'\n", valStr)
 				lowerValStr := strings.ToLower(valStr)
 				if lowerValStr == "true" || lowerValStr == "verdadero" {
 					expectedBoolValue = true
 				} else if lowerValStr == "false" || lowerValStr == "falso" {
 					expectedBoolValue = false
 				} else {
-					fmt.Printf("DEBUG BOOLEAN: question.CorrectAnswer string ('%s') no reconocido como booleano.\n", valStr)
 					isCorrectAnswerParsable = false
 				}
 			} else {
-				fmt.Printf("DEBUG BOOLEAN: question.CorrectAnswer no es bool ni string. Es: %T\n", question.CorrectAnswer)
 				isCorrectAnswerParsable = false
 			}
 
@@ -301,9 +246,7 @@ func (c *QuizController) gradeQuiz(teacherQuiz domain.TeacherQuiz, studentAnswer
 
 			studentAnswerBool, typeOk := studentAnswer.(bool)
 			if !typeOk {
-				// Podrías también intentar convertir la respuesta del estudiante si viene como string "true"/"false"
 				if studentAnswerStr, okStr := studentAnswer.(string); okStr {
-					fmt.Printf("DEBUG BOOLEAN: studentAnswer es string: '%s', intentando convertir.\n", studentAnswerStr)
 					lowerStudentStr := strings.ToLower(studentAnswerStr)
 					if lowerStudentStr == "true" || lowerStudentStr == "verdadero" {
 						studentAnswerBool = true
@@ -311,24 +254,14 @@ func (c *QuizController) gradeQuiz(teacherQuiz domain.TeacherQuiz, studentAnswer
 					} else if lowerStudentStr == "false" || lowerStudentStr == "falso" {
 						studentAnswerBool = false
 						typeOk = true
-					} else {
-						fmt.Printf("DEBUG BOOLEAN: studentAnswer string ('%s') no reconocido como booleano.\n", studentAnswerStr)
 					}
 				}
-				if !typeOk {
-					fmt.Printf("DEBUG BOOLEAN: studentAnswer no es bool (ni string convertible). Es: %T\n", studentAnswer)
-					continue
-				}
+
 			}
-			fmt.Printf("DEBUG BOOLEAN: Comparando %t (estudiante) con %t (correcta).\n", studentAnswerBool, expectedBoolValue)
 			if studentAnswerBool == expectedBoolValue {
 				earnedPoints += float64(question.Points)
-				fmt.Printf("DEBUG BOOLEAN: ¡CORRECTO! Puntos ganados: %d\n", question.Points)
-			} else {
-				fmt.Printf("DEBUG BOOLEAN: Incorrecto.\n")
 			}
 		}
-		fmt.Printf("Puntos acumulados: %f\n", earnedPoints)
 	}
 
 	fmt.Printf("\n--- FIN CALIFICACIÓN ---\n")
