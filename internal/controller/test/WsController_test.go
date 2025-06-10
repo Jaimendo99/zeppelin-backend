@@ -11,12 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"zeppelin/internal/controller" // Assuming this is your module path
-	"zeppelin/internal/domain"     // Import your domain package
+	"zeppelin/internal/controller"
+	"zeppelin/internal/domain"
 
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
-	elog "github.com/labstack/gommon/log"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -36,6 +35,32 @@ func (m *MockSessionRepo) StartSession(userID string) (int, error) {
 	return 1, nil
 }
 
+type MockParentalConsentRepo struct {
+	GetConsentByUserIDFunc func(userID string) (*domain.ParentalConsent, error)
+}
+
+func (m *MockParentalConsentRepo) CreateConsent(consent domain.ParentalConsent) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockParentalConsentRepo) UpdateConsentStatus(token, status, ip, userAgent string) error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockParentalConsentRepo) GetConsentByToken(token string) (*domain.ParentalConsent, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (m *MockParentalConsentRepo) GetConsentByUserID(userID string) (*domain.ParentalConsent, error) {
+	if m.GetConsentByUserIDFunc != nil {
+		return m.GetConsentByUserIDFunc(userID)
+	}
+	return &domain.ParentalConsent{Status: "ACCEPTED"}, nil
+}
+
 func (m *MockSessionRepo) EndSession(sessionID int) error {
 	if m.EndSessionFunc != nil {
 		return m.EndSessionFunc(sessionID)
@@ -52,45 +77,26 @@ func (m *MockSessionRepo) GetActiveSessionByUserID(userID string) (*domain.Sessi
 	return nil, nil
 }
 
-// setupTestServer sets up a test Echo server with the WebSocket handler.
-// It now includes a mock SessionRepo for the ConnectionManager.
 func setupTestServer(t *testing.T, userID string) (*httptest.Server, string, *controller.ConnectionManager, *MockSessionRepo) {
-	t.Helper() // Mark as test helper
+	t.Helper()
 
-	// Create a mock SessionRepo
 	mockSessionRepo := &MockSessionRepo{}
+	mockConsentRepo := &MockParentalConsentRepo{} // <- nuevo mock
 
-	// Create ConnectionManager with the mock SessionRepo
-	connManager := controller.NewConnectionManager(mockSessionRepo)
+	connManager := controller.NewConnectionManager(mockSessionRepo, mockConsentRepo) // <- pasar ambos
 
 	e := echo.New()
-	e.Logger.SetLevel(elog.DEBUG) // Use DEBUG for more verbose test logs if needed
-	e.Logger.SetHeader("${time_rfc3339} ${level} ${prefix} ${file}:${line}")
-
-	// Middleware to simulate authentication and set user_id
-	authMiddleware := func(next echo.HandlerFunc) echo.HandlerFunc {
+	e.GET("/ws", connManager.WebSocketHandler(), func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			// Only set user_id if it's provided for the test
-			if userID != "" {
-				t.Logf("DEBUG: AuthMiddleware setting user_id to: %s for path %s", userID, c.Request().URL.Path)
-				c.Set("user_id", userID)
-			} else {
-				t.Logf("DEBUG: AuthMiddleware not setting user_id (empty userID provided) for path %s", c.Request().URL.Path)
-			}
+			c.Set("user_id", userID)
 			return next(c)
 		}
-	}
-
-	e.GET("/ws", connManager.WebSocketHandler(), authMiddleware)
+	})
 
 	server := httptest.NewServer(e)
-	t.Logf("DEBUG: Test server started at URL: %s", server.URL)
-
-	// Construct the base WebSocket URL
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/ws"
-	t.Logf("DEBUG: Base WebSocket URL for test: %s", wsURL)
 
-	return server, wsURL, connManager, mockSessionRepo // Return the mock SessionRepo as well
+	return server, wsURL, connManager, mockSessionRepo
 }
 
 // connectWebSocketNoCleanup now requires courseId

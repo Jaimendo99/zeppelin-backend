@@ -15,12 +15,12 @@ func NewRepresentativeRepo(db *gorm.DB) domain.RepresentativeRepo {
 	return &represetativeRepo{db: db}
 }
 
-func (r *represetativeRepo) CreateRepresentative(representative domain.RepresentativeDb) error {
+func (r *represetativeRepo) CreateRepresentative(representative domain.RepresentativeDb) (int, error) {
 	result := r.db.Create(&representative)
 	if result.Error != nil {
-		return result.Error
+		return 0, result.Error
 	}
-	return nil
+	return representative.RepresentativeId, nil
 }
 
 func (r *represetativeRepo) GetRepresentative(representativeId int) (*domain.Representative, error) {

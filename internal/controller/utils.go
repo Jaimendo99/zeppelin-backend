@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
@@ -17,7 +19,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func ReturnReadResponse(e echo.Context, err error, body any) error {
+func ReturnReadResponse(c echo.Context, err error, body any) error {
 	if err != nil {
 		if errors.Is(err, gorm.ErrInvalidData) {
 			return echo.NewHTTPError(http.StatusBadRequest, struct {
@@ -49,15 +51,21 @@ func ReturnReadResponse(e echo.Context, err error, body any) error {
 			Message string `json:"message"`
 		}{Message: "Internal server error"})
 	}
-	if reflect.ValueOf(body).IsNil() {
-		return e.JSON(http.StatusOK, []any{})
+
+	// Manejar body vacío o nulo
+	if body == nil {
+		return c.JSON(http.StatusOK, []any{})
 	}
+
+	// Verificar si es un puntero nulo
 	if reflect.ValueOf(body).Kind() == reflect.Ptr && reflect.ValueOf(body).IsNil() {
 		return echo.NewHTTPError(http.StatusNotFound, struct {
 			Message string `json:"message"`
 		}{Message: "Resource not found"})
 	}
-	return e.JSON(http.StatusOK, body)
+
+	// Devolver la respuesta
+	return c.JSON(http.StatusOK, body)
 }
 
 type ErrorWithLocation struct {
@@ -189,4 +197,10 @@ func ForceString(v interface{}) string {
 	default:
 		return fmt.Sprintf("%v", val)
 	}
+}
+
+func GenerateToken() string {
+	b := make([]byte, 32)
+	rand.Read(b)
+	return hex.EncodeToString(b)
 }

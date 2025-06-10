@@ -9,8 +9,11 @@ import (
 )
 
 type UserController struct {
-	AuthService domain.AuthServiceI
-	UserRepo    domain.UserRepo
+	AuthService   domain.AuthServiceI
+	UserRepo      domain.UserRepo
+	ConsentRepo   domain.ParentalConsentRepo
+	RepRepo       domain.RepresentativeRepo
+	SendEmailFunc func(toEmail string, token string) error
 }
 
 func (c *UserController) RegisterUser(role string) echo.HandlerFunc {
@@ -44,6 +47,33 @@ func (c *UserController) RegisterUser(role string) echo.HandlerFunc {
 		}
 
 		err = c.UserRepo.CreateUser(userDb)
+
+		rep := domain.RepresentativeDb{
+			Name:        req.Representative.Name,
+			Lastname:    req.Representative.Lastname,
+			Email:       req.Representative.Email,
+			PhoneNumber: req.Representative.PhoneNumber,
+			UserID:      user.UserID,
+		}
+		repID, err := c.RepRepo.CreateRepresentative(rep)
+		if err != nil {
+			return ReturnWriteResponse(e, err, map[string]string{"message": "Error al crear representante"})
+		}
+		token := GenerateUID()
+		consent := domain.ParentalConsent{
+			UserID:           user.UserID,
+			RepresentativeID: repID,
+			Token:            token,
+			Status:           "PENDING",
+		}
+		if err := c.ConsentRepo.CreateConsent(consent); err != nil {
+			return ReturnWriteResponse(e, err, map[string]string{"message": "Error al guardar consentimiento"})
+		}
+
+		if err := c.SendEmailFunc(req.Representative.Email, token); err != nil {
+			return ReturnWriteResponse(e, err, map[string]string{"message": "Error al enviar email de consentimiento"})
+		}
+
 		return ReturnWriteResponse(e, err, struct {
 			Message string `json:"message"`
 		}{Message: "Usuario registrado con éxito"})

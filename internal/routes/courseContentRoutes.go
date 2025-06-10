@@ -19,6 +19,8 @@ func DefineCourseContentRoutes(e *echo.Echo) {
 		RepoAssigment:        assignmentRepo,
 		RepoCourse:           courseRepo,
 		GeneratePresignedURL: config.GeneratePresignedURL,
+		UploadTextFunc:       config.UploadTeacherText,
+		UploadQuizFunc:       config.UploadTeacherQuiz,
 	}
 
 	authService, err := services.NewAuthService()
