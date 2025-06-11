@@ -16,7 +16,6 @@ func DefineRepresentativeRoutes(e *echo.Echo, roleMiddlewareProvider func(roles 
 	recontroller := controller.RepresentativeController{Repo: repo}
 
 	e.GET("/representative/:representative_id", recontroller.GetRepresentative(), roleMiddlewareProvider("org:admin", "org:teacher"))
-	e.POST("/representative", recontroller.CreateRepresentative(), roleMiddlewareProvider("org:admin", "org:teacher"))
 	e.GET("/representatives", recontroller.GetAllRepresentatives())
 	e.PUT("/representative/:representative_id", recontroller.UpdateRepresentative(), roleMiddlewareProvider("org:admin", "org:teacher"))
 }

@@ -9,7 +9,6 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -77,7 +76,18 @@ func TestUserController_RegisterUser(t *testing.T) {
 	// --- Test Case 2: Success - Teacher ---
 	t.Run("Success_Teacher", func(t *testing.T) {
 		// Similar setup as student, but with role "org:teacher" and TypeID 2
-		userInput := domain.UserInput{Name: "Test", Lastname: "Teacher", Email: "test.teacher@example.com"}
+		userInput := domain.UserInput{
+			Name:     "Test",
+			Lastname: "Teacher",
+			Email:    "test.teacher@example.com",
+			Representative: domain.RepresentativeInput{
+				Name:        "Dummy",
+				Lastname:    "Dummy",
+				Email:       "dummy@example.com",
+				PhoneNumber: "0000000000",
+			},
+		}
+
 		userInputJSON, _ := json.Marshal(userInput)
 		req := httptest.NewRequest(http.MethodPost, "/register/teacher", strings.NewReader(string(userInputJSON)))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
@@ -104,7 +114,18 @@ func TestUserController_RegisterUser(t *testing.T) {
 
 	// --- Test Case 3: Failure - Invalid Role ---
 	t.Run("Failure_InvalidRole", func(t *testing.T) {
-		userInput := domain.UserInput{Name: "Test", Lastname: "Invalid", Email: "test.invalid@example.com"}
+		userInput := domain.UserInput{
+			Name:     "Test",
+			Lastname: "Teacher",
+			Email:    "test.teacher@example.com",
+			Representative: domain.RepresentativeInput{
+				Name:        "Dummy",
+				Lastname:    "Dummy",
+				Email:       "dummy@example.com",
+				PhoneNumber: "0000000000",
+			},
+		}
+
 		userInputJSON, _ := json.Marshal(userInput)
 		req := httptest.NewRequest(http.MethodPost, "/register/invalid", strings.NewReader(string(userInputJSON)))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
@@ -126,7 +147,18 @@ func TestUserController_RegisterUser(t *testing.T) {
 
 	// --- Test Case 4: Failure - AuthService Error ---
 	t.Run("Failure_AuthServiceError", func(t *testing.T) {
-		userInput := domain.UserInput{Name: "Test", Lastname: "AuthFail", Email: "test.authfail@example.com"}
+		userInput := domain.UserInput{
+			Name:     "Test",
+			Lastname: "Teacher",
+			Email:    "test.teacher@example.com",
+			Representative: domain.RepresentativeInput{
+				Name:        "Dummy",
+				Lastname:    "Dummy",
+				Email:       "dummy@example.com",
+				PhoneNumber: "0000000000",
+			},
+		}
+
 		userInputJSON, _ := json.Marshal(userInput)
 		req := httptest.NewRequest(http.MethodPost, "/register/student", strings.NewReader(string(userInputJSON)))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)

@@ -20,46 +20,48 @@ func TestRepresentativeRepo_CreateRepresentative(t *testing.T) {
 	representative := domain.RepresentativeDb{
 		Name:        "John",
 		Lastname:    "Doe",
-		Email:       sql.NullString{String: "john.doe@example.com", Valid: true},
-		PhoneNumber: sql.NullString{String: "123456789", Valid: true},
+		Email:       "john.doe@example.com",
+		PhoneNumber: "123456789",
+		UserID:      "", // si es vacío está bien
 	}
 
 	t.Run("Success", func(t *testing.T) {
-		// For INSERT queries with GORM, we need to expect both a BEGIN and COMMIT transaction
 		mock.ExpectBegin()
-		// Use the actual table name "representatives" instead of "representative"
-		mock.ExpectExec(`INSERT INTO "representatives"`).
+		// La consulta debe incluir los 5 campos
+		mock.ExpectQuery(`INSERT INTO "representatives"`).
 			WithArgs(
 				representative.Name,
 				representative.Lastname,
-				representative.Email.String,
-				representative.PhoneNumber.String,
+				representative.Email,
+				representative.PhoneNumber,
+				representative.UserID,
 			).
-			WillReturnResult(sqlmock.NewResult(1, 1))
+			WillReturnRows(sqlmock.NewRows([]string{"representative_id"}).AddRow(1))
 		mock.ExpectCommit()
 
-		err := repo.CreateRepresentative(representative)
-
+		id, err := repo.CreateRepresentative(representative)
 		assert.NoError(t, err)
+		assert.Equal(t, 1, id)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 
 	t.Run("Failure", func(t *testing.T) {
 		expectedErr := errors.New("database error")
 		mock.ExpectBegin()
-		mock.ExpectExec(`INSERT INTO "representatives"`).
+		mock.ExpectQuery(`INSERT INTO "representatives"`).
 			WithArgs(
 				representative.Name,
 				representative.Lastname,
-				representative.Email.String,
-				representative.PhoneNumber.String,
+				representative.Email,
+				representative.PhoneNumber,
+				representative.UserID,
 			).
 			WillReturnError(expectedErr)
 		mock.ExpectRollback()
 
-		err := repo.CreateRepresentative(representative)
-
+		id, err := repo.CreateRepresentative(representative)
 		assert.Error(t, err)
+		assert.Equal(t, 0, id)
 		assert.Equal(t, expectedErr, err)
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})

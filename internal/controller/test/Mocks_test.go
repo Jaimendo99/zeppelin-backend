@@ -10,19 +10,16 @@ import (
 )
 
 type MockAssignmentRepo struct {
-	CreateA             func(userID string, courseID int) error
-	VerifyA             func(assignmentID int) error
-	GetAssignmentsByS   func(userID string) ([]domain.AssignmentWithCourse, error)
-	GetStudentsByC      func(courseID int) ([]domain.AssignmentWithStudent, error)
-	GetCourseIDByQR     func(qrCode string) (int, error)
-	GetAssignmentsBySAC func(userID string, courseID int) (domain.AssignmentWithCourse, error)
+	CreateA           func(userID string, courseID int) error
+	VerifyA           func(assignmentID int) error
+	GetAssignmentsByS func(userID string) ([]domain.StudentCourseProgress, error)
+	GetStudentsByC    func(courseID int) ([]domain.AssignmentWithStudent, error)
+	GetCourseIDByQR   func(qrCode string) (int, error)
 }
 
 func (m *MockAssignmentRepo) GetAssignmentsByStudentAndCourse(userID string, courseID int) (domain.AssignmentWithCourse, error) {
-	if m.GetAssignmentsBySAC != nil {
-		return m.GetAssignmentsBySAC(userID, courseID)
-	}
-	return domain.AssignmentWithCourse{}, errors.New("GetAssignmentsByStudentAndCourse function not implemented in mock")
+	//TODO implement me
+	panic("implement me")
 }
 
 func (m *MockAssignmentRepo) CreateAssignment(userID string, courseID int) error {
@@ -39,7 +36,7 @@ func (m *MockAssignmentRepo) VerifyAssignment(assignmentID int) error {
 	return errors.New("VerifyA function not implemented in mock")
 }
 
-func (m *MockAssignmentRepo) GetAssignmentsByStudent(userID string) ([]domain.AssignmentWithCourse, error) {
+func (m *MockAssignmentRepo) GetAssignmentsByStudent(userID string) ([]domain.StudentCourseProgress, error) {
 	if m.GetAssignmentsByS != nil {
 		return m.GetAssignmentsByS(userID)
 	}
@@ -216,56 +213,56 @@ func (m MockCourseContentRepo) GetUrlByContentID(contentID string) (string, erro
 	return "", errors.New("GetUrlByContentID not implemented")
 }
 
-// MockCourseRepo mocks CourseRepo
-type MockCourseRepo struct {
-	CreateC                        func(course domain.CourseDB) error
-	GetCoursesByT                  func(teacherID string) ([]domain.CourseDB, error)
-	GetCoursesByS                  func(studentID string) ([]domain.CourseDB, error)
-	GetCourseByS2                  func(studentID string) ([]domain.CourseDbRelation, error)
-	GetCourseByTeacherAndCourseIDT func(teacherID string, courseID int) (domain.CourseDB, error)
-	GetCoursesByS2T                func(studentID, courseID string) (*domain.CourseDbRelation, error)
-}
-
-func (m MockCourseRepo) GetCourseByTeacherAndCourseID(teacherID string, courseID int) (domain.CourseDB, error) {
-	if m.GetCourseByTeacherAndCourseIDT != nil {
-		return m.GetCourseByTeacherAndCourseIDT(teacherID, courseID)
-	}
-	return domain.CourseDB{}, errors.New("GetCourseByTeacherAndCourseID function not implemented in mock")
-}
-
-func (m MockCourseRepo) CreateCourse(course domain.CourseDB) error {
-	if m.CreateC != nil {
-		return m.CreateC(course)
-	}
-	return errors.New("CreateC function not implemented in mock")
-}
-
-func (m MockCourseRepo) GetCoursesByTeacher(teacherID string) ([]domain.CourseDB, error) {
-	if m.GetCoursesByT != nil {
-		return m.GetCoursesByT(teacherID)
-	}
-	return nil, errors.New("GetCoursesByT function not implemented in mock")
-}
-
-func (m MockCourseRepo) GetCoursesByStudent(studentID string) ([]domain.CourseDB, error) {
-	if m.GetCoursesByS != nil {
-		return m.GetCoursesByS(studentID)
-	}
-	return nil, errors.New("GetCoursesByS function not implemented in mock")
-}
-func (m MockCourseRepo) GetCoursesByStudent2(studentID string) ([]domain.CourseDbRelation, error) {
-	if m.GetCourseByS2 != nil {
-		return m.GetCourseByS2(studentID)
-	}
-	return nil, errors.New("GetCourseByS2 function not implemented in mock")
-}
-
-func (m MockCourseRepo) GetCourse(studentID, courseID string) (*domain.CourseDbRelation, error) {
-	if m.GetCoursesByS2T != nil {
-		return m.GetCoursesByS2T(studentID, courseID)
-	}
-	return nil, errors.New("GetCourses function not implemented in mock")
-}
+//// MockCourseRepo mocks CourseRepo
+//type MockCourseRepo struct {
+//	CreateC                        func(course domain.CourseDB) error
+//	GetCoursesByT                  func(teacherID string) ([]domain.CourseTeacher, error)
+//	GetCoursesByS                  func(studentID string) ([]domain.CourseDB, error)
+//	GetCourseByS2                  func(studentID string) ([]domain.CourseDbRelation, error)
+//	GetCourseByTeacherAndCourseIDT func(teacherID string, courseID int) (domain.CourseDB, error)
+//	GetCoursesByS2T                func(studentID, courseID string) (domain.CourseDbRelation, error)
+//}
+//
+//func (m MockCourseRepo) GetCourseByTeacherAndCourseID(teacherID string, courseID int) (domain.CourseDB, error) {
+//	if m.GetCourseByTeacherAndCourseIDT != nil {
+//		return m.GetCourseByTeacherAndCourseIDT(teacherID, courseID)
+//	}
+//	return domain.CourseDB{}, errors.New("GetCourseByTeacherAndCourseID function not implemented in mock")
+//}
+//
+//func (m MockCourseRepo) CreateCourse(course domain.CourseDB) error {
+//	if m.CreateC != nil {
+//		return m.CreateC(course)
+//	}
+//	return errors.New("CreateC function not implemented in mock")
+//}
+//
+//func (m MockCourseRepo) GetCoursesByTeacher(teacherID string) ([]domain.CourseTeacher, error) {
+//	if m.GetCoursesByT != nil {
+//		return m.GetCoursesByT(teacherID)
+//	}
+//	return nil, errors.New("GetCoursesByT function not implemented in mock")
+//}
+//
+//func (m MockCourseRepo) GetCoursesByStudent(studentID string) ([]domain.CourseDB, error) {
+//	if m.GetCoursesByS != nil {
+//		return m.GetCoursesByS(studentID)
+//	}
+//	return nil, errors.New("GetCoursesByS function not implemented in mock")
+//}
+//func (m MockCourseRepo) GetCoursesByStudent2(studentID string) ([]domain.CourseDbRelation, error) {
+//	if m.GetCourseByS2 != nil {
+//		return m.GetCourseByS2(studentID)
+//	}
+//	return nil, errors.New("GetCourseByS2 function not implemented in mock")
+//}
+//
+//func (m MockCourseRepo) GetCourse(studentID, courseID string) (domain.CourseDbRelation, error) {
+//	if m.GetCoursesByS2T != nil {
+//		return m.GetCoursesByS2T(studentID, courseID)
+//	}
+//	return domain.CourseDbRelation{}, errors.New("GetCourses function not implemented in mock")
+//}
 
 // MockQuizRepo mocks QuizRepository
 type MockQuizRepo struct {

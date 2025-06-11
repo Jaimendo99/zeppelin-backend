@@ -79,7 +79,7 @@ func (c *CourseController) GetCoursesByStudent2() echo.HandlerFunc {
 			return ReturnReadResponse(e, echo.NewHTTPError(403, "Solo los estudiantes pueden ver sus cursos"), nil)
 		}
 		courses, err := c.Repo.GetCoursesByStudent2(userID)
-		coursesOutput := []domain.CourseOutput{}
+		var coursesOutput []domain.CourseOutput
 		for _, course := range courses {
 			coursesOutput = append(coursesOutput, course.ToCourseOutput())
 		}

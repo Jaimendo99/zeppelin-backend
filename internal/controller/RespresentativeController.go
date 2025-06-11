@@ -11,20 +11,6 @@ type RepresentativeController struct {
 	Repo domain.RepresentativeRepo
 }
 
-func (c *RepresentativeController) CreateRepresentative() echo.HandlerFunc {
-	return func(e echo.Context) error {
-		representative := domain.RepresentativeInput{}
-		if err := ValidateAndBind(e, &representative); err != nil {
-			return err
-		}
-		repeDb := services.RepresentativesInputToDb(&representative)
-		err := c.Repo.CreateRepresentative(repeDb)
-		return ReturnWriteResponse(e, err, struct {
-			Message string `json:"message"`
-		}{Message: "Representative created"})
-	}
-}
-
 func (c *RepresentativeController) GetRepresentative() echo.HandlerFunc {
 	return func(e echo.Context) error {
 		representativeId := e.Param("representative_id")

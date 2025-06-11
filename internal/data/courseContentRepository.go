@@ -131,7 +131,7 @@ func (r *courseContentRepo) GetContentByCourse(courseID int) ([]domain.CourseCon
 	var courseContents []domain.CourseContentDB
 	// Dentro de tu repositorio (en GetContentByCourse)
 	fmt.Printf("Conexión DB: %+v\n", r.db)
-	
+
 	query := r.db.
 		Where("course_id = ?", courseID).
 		Order("module_index")

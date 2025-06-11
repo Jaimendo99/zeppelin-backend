@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
@@ -73,6 +75,7 @@ func ReturnReadResponse(e echo.Context, err error, body any) error {
 	// we fall through to the default behavior of returning the body.
 	}
 
+	// Devolver la respuesta
 	return e.JSON(http.StatusOK, body)
 }
 
@@ -207,4 +210,10 @@ func ForceString(v interface{}) string {
 	default:
 		return fmt.Sprintf("%v", val)
 	}
+}
+
+func GenerateToken() string {
+	b := make([]byte, 32)
+	rand.Read(b)
+	return hex.EncodeToString(b)
 }

@@ -19,16 +19,18 @@ func (r *courseRepo) CreateCourse(course domain.CourseDB) error {
 	return result.Error
 }
 
-func (r *courseRepo) GetCoursesByTeacher(teacherID string) ([]domain.CourseDB, error) {
-	var courses []domain.CourseDB
-	result := r.db.Where("teacher_id = ?", teacherID).Find(&courses)
+func (r *courseRepo) GetCoursesByTeacher(teacherID string) ([]domain.CourseTeacher, error) {
+	var courses []domain.CourseTeacher
+	result := r.db.Table("course_teacher_view").
+		Where("teacher_id = ?", teacherID).
+		Find(&courses)
 	return courses, result.Error
 }
 
 func (r *courseRepo) GetCoursesByStudent(studentID string) ([]domain.CourseDB, error) {
 	var courses []domain.CourseDB
 	result := r.db.Raw(`
-        SELECT c.* FROM course c
+		SELECT c.* FROM course c
         JOIN enrollments e ON c.course_id = e.course_id
         WHERE e.student_id = ?`, studentID).Scan(&courses)
 	return courses, result.Error

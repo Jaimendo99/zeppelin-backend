@@ -11,11 +11,13 @@ type User struct {
 }
 
 type UserDb struct {
-	UserID   string `json:"id"`
-	Name     string
-	Lastname string
-	Email    string
-	TypeID   int
+	UserID          string `json:"id" gorm:"column:user_id;primaryKey"`
+	Name            string
+	Lastname        string
+	Email           string
+	TypeID          int
+	Representatives []RepresentativeDb `gorm:"foreignKey:UserID;references:UserID"`
+	ParentalConsent *ParentalConsentDb `gorm:"foreignKey:UserID;references:UserID"`
 }
 
 type UserDbRelation struct {
@@ -33,9 +35,10 @@ func (UserDbRelation) TableName() string {
 }
 
 type UserInput struct {
-	Name     string `json:"name" validate:"required"`
-	Lastname string `json:"lastname" validate:"required"`
-	Email    string `json:"email" validate:"required,email"`
+	Name           string              `json:"name" validate:"required"`
+	Lastname       string              `json:"lastname" validate:"required"`
+	Email          string              `json:"email" validate:"required,email"`
+	Representative RepresentativeInput `json:"representative" validate:"required"`
 }
 
 type UserRepo interface {

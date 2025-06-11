@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"zeppelin/internal/config"
 	"zeppelin/internal/domain"
 
 	"github.com/labstack/echo/v4"
@@ -16,6 +15,8 @@ type CourseContentController struct {
 	RepoAssigment        domain.AssignmentRepo
 	RepoCourse           domain.CourseRepo
 	GeneratePresignedURL func(bucket, key string) (string, error)
+	UploadTextFunc       func(courseID, contentID string, json []byte) error
+	UploadQuizFunc       func(courseID, contentID string, jsonBytes []byte) error
 }
 
 func (c *CourseContentController) GetCourseContentTeacher() echo.HandlerFunc {
@@ -131,7 +132,8 @@ func (c *CourseContentController) GetCourseContentForStudent() echo.HandlerFunc 
 					continue
 				}
 
-				signedURL, err := config.GeneratePresignedURL("zeppelin", key)
+				signedURL, err := c.GeneratePresignedURL("zeppelin", key)
+
 				if err != nil {
 					return ReturnReadResponse(e, echo.NewHTTPError(http.StatusInternalServerError, fmt.Sprintf("error al generar URL firmada para content_type_id %d", detail.ContentTypeID)), nil)
 				}
@@ -215,7 +217,7 @@ func (c *CourseContentController) UpdateContent() echo.HandlerFunc {
 		case 2: // Texto
 			if input.JsonData != nil {
 				courseIDStr := strconv.Itoa(input.CourseID)
-				err = config.UploadTeacherText(courseIDStr, input.ContentID, input.JsonData)
+				err = c.UploadTextFunc(courseIDStr, input.ContentID, input.JsonData)
 				if err != nil {
 					return ReturnWriteResponse(e, echo.NewHTTPError(http.StatusInternalServerError, "error al subir texto a R2"), nil)
 				}
@@ -228,7 +230,7 @@ func (c *CourseContentController) UpdateContent() echo.HandlerFunc {
 		case 3: // Quiz
 			if input.JsonData != nil {
 				courseIDStr := strconv.Itoa(input.CourseID)
-				err = config.UploadTeacherQuiz(courseIDStr, input.ContentID, input.JsonData)
+				err = c.UploadQuizFunc(courseIDStr, input.ContentID, input.JsonData)
 				if err != nil {
 					return ReturnWriteResponse(e, echo.NewHTTPError(http.StatusInternalServerError, "error al subir quiz a R2"), nil)
 				}

@@ -57,6 +57,9 @@ func init() {
 	for _, obj := range output.Contents {
 		fmt.Println("Archivo:", *obj.Key)
 	}
+
+	_, err = config.InitResend()
+
 }
 
 func main() {
@@ -85,7 +88,7 @@ func main() {
 
 	routes.DefineRepresentativeRoutes(e, roleMiddlewareProvider)
 	routes.DefineTeacherRoutes(e, auth, roleMiddlewareProvider)
-	routes.DefineStudentRoutes(e, auth, roleMiddlewareProvider)
+	routes.DefineStudentRoutes(e)
 	routes.DefineCourseRoutes(e, auth, roleMiddlewareProvider)
 	routes.DefineAssignmentRoutes(e, roleMiddlewareProvider)
 	routes.DefineNotificationRoutes(e, roleMiddlewareProvider)
@@ -95,6 +98,7 @@ func main() {
 	routes.DefineUserFcmTokenRoutes(e, auth, roleMiddlewareProvider)
 	routes.DefinePomodoroRoutes(e, auth, roleMiddlewareProvider)
 	routes.DefineQuizAnswerRoutes(e, auth, roleMiddlewareProvider)
+	routes.DefineParentalConsentRoutes(e)
 	defer func(MQConn config.AmqpConnection) {
 		err := MQConn.Close()
 		if err != nil {
@@ -102,6 +106,10 @@ func main() {
 		}
 	}(config.MQConn)
 
-	e.Logger.Error(e.Start("0.0.0.0:3000"))
+	port := config.GetPort()
+	if port == "" {
+		port = "3000"
+	}
+	e.Logger.Error(e.Start("0.0.0.0:" + port))
 
 }

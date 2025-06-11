@@ -173,14 +173,39 @@ func TestSendNotification_RepoError(t *testing.T) {
 	}
 }
 
-// --- GetAssignmentsByStudent Tests ---
 
 func TestGetAssignmentsByStudent_Success(t *testing.T) {
 	testUserID := "student-1"
 	testRole := "org:student"
-	mockAssignments := []domain.AssignmentWithCourse{
-		{AssignmentID: 1, CourseID: 101, Title: "Course A", QRCode: "qr1", AssignedAt: "2023-01-01T10:00:00Z", IsActive: true, IsVerify: false},
-		{AssignmentID: 2, CourseID: 102, Title: "Course B", QRCode: "qr2", AssignedAt: "2023-01-02T11:00:00Z", IsActive: true, IsVerify: true},
+	mockAssignments := []domain.StudentCourseProgress{
+		{
+			UserID:               "user-1",
+			CourseID:             101,
+			TeacherID:            "teacher-1",
+			StartDate:            "2023-01-01",
+			Title:                "Course A",
+			Description:          "Description A",
+			QRCode:               "qr1",
+			ModuleCount:          5,
+			VideoCount:           10,
+			TextCount:            3,
+			QuizCount:            2,
+			CompletionPercentage: 75.5,
+		},
+		{
+			UserID:               "user-2",
+			CourseID:             102,
+			TeacherID:            "teacher-2",
+			StartDate:            "2023-01-02",
+			Title:                "Course B",
+			Description:          "Description B",
+			QRCode:               "qr2",
+			ModuleCount:          4,
+			VideoCount:           8,
+			TextCount:            2,
+			QuizCount:            1,
+			CompletionPercentage: 88.2,
+		},
 	}
 
 	e := echo.New()
@@ -191,7 +216,7 @@ func TestGetAssignmentsByStudent_Success(t *testing.T) {
 	c.Set("user_role", testRole)
 
 	mockRepo := &MockAssignmentRepo{
-		GetAssignmentsByS: func(userID string) ([]domain.AssignmentWithCourse, error) {
+		GetAssignmentsByS: func(userID string) ([]domain.StudentCourseProgress, error) {
 			assert.Equal(t, testUserID, userID)
 			return mockAssignments, nil
 		},
@@ -199,13 +224,42 @@ func TestGetAssignmentsByStudent_Success(t *testing.T) {
 	assignmentController := controller.AssignmentController{Repo: mockRepo}
 	handler := assignmentController.GetAssignmentsByStudent()
 
-	// Expect handler to call ReturnReadResponse internally and return nil
 	err := handler(c)
 
 	if assert.NoError(t, err) {
 		assert.Equal(t, http.StatusOK, rec.Code)
-		// Adjust expected JSON based on AssignmentWithCourse struct and actual data
-		expectedJSON := `[{"assignment_id":1,"assigned_at":"2023-01-01T10:00:00Z","is_active":true,"is_verify":false,"course_id":101,"teacher_id":"","start_date":"","title":"Course A","description":"","qr_code":"qr1"},{"assignment_id":2,"assigned_at":"2023-01-02T11:00:00Z","is_active":true,"is_verify":true,"course_id":102,"teacher_id":"","start_date":"","title":"Course B","description":"","qr_code":"qr2"}]`
+		expectedJSON := `
+		[
+			{
+				"user_id": "user-1",
+				"course_id": 101,
+				"teacher_id": "teacher-1",
+				"start_date": "2023-01-01",
+				"title": "Course A",
+				"description": "Description A",
+				"qr_code": "qr1",
+				"module_count": 5,
+				"video_count": 10,
+				"text_count": 3,
+				"quiz_count": 2,
+				"completion_percentage": 75.5
+			},
+			{
+				"user_id": "user-2",
+				"course_id": 102,
+				"teacher_id": "teacher-2",
+				"start_date": "2023-01-02",
+				"title": "Course B",
+				"description": "Description B",
+				"qr_code": "qr2",
+				"module_count": 4,
+				"video_count": 8,
+				"text_count": 2,
+				"quiz_count": 1,
+				"completion_percentage": 88.2
+			}
+		]
+		`
 		assert.JSONEq(t, expectedJSON, rec.Body.String())
 	}
 }
@@ -222,7 +276,7 @@ func TestGetAssignmentsByStudent_Forbidden(t *testing.T) {
 	c.Set("user_role", testRole)
 
 	mockRepo := &MockAssignmentRepo{ // Should not be called
-		GetAssignmentsByS: func(userID string) ([]domain.AssignmentWithCourse, error) {
+		GetAssignmentsByS: func(userID string) ([]domain.StudentCourseProgress, error) {
 			assert.Fail(t, "GetAssignmentsByStudent should not be called")
 			return nil, nil
 		},
@@ -254,7 +308,7 @@ func TestGetAssignmentsByStudent_RepoError(t *testing.T) {
 	c.Set("user_role", testRole)
 
 	mockRepo := &MockAssignmentRepo{
-		GetAssignmentsByS: func(userID string) ([]domain.AssignmentWithCourse, error) {
+		GetAssignmentsByS: func(userID string) ([]domain.StudentCourseProgress, error) {
 			assert.Equal(t, testUserID, userID)
 			return nil, repoErr
 		},
