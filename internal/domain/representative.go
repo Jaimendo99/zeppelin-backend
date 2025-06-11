@@ -1,7 +1,6 @@
 package domain
 
 import (
-	"database/sql"
 	"github.com/stretchr/testify/mock"
 )
 
@@ -11,24 +10,27 @@ type Representative struct {
 	Lastname         string `json:"lastname"`
 	Email            string `json:"email"`
 	PhoneNumber      string `json:"phone_number"`
+	UserID           string `json:"user_id" gorm:"column:user_id"`
 }
 
 type RepresentativeDb struct {
-	Name        string
-	Lastname    string
-	Email       sql.NullString
-	PhoneNumber sql.NullString `gorm:"column:phone_number"`
+	RepresentativeId int `json:"representative_id" gorm:"primaryKey"`
+	Name             string
+	Lastname         string
+	Email            string `gorm:"column:email"`
+	PhoneNumber      string `gorm:"column:phone_number"`
+	UserID           string `gorm:"column:user_id"`
 }
 
 type RepresentativeInput struct {
 	Name        string `json:"name" validate:"required"`
 	Lastname    string `json:"lastname" validate:"required"`
 	Email       string `json:"email" validate:"omitempty,email"`
-	PhoneNumber string `json:"phone_number" validate:"omitempty,e164" gorm:"column:phone_number"`
+	PhoneNumber string `json:"phone_number" validate:"omitempty" gorm:"column:phone_number"`
 }
 
 type RepresentativeRepo interface {
-	CreateRepresentative(representative RepresentativeDb) error
+	CreateRepresentative(representative RepresentativeDb) (int, error)
 	GetRepresentative(representativeId int) (*Representative, error)
 	GetAllRepresentatives() ([]Representative, error)
 	UpdateRepresentative(representativeId int, representative RepresentativeInput) error
@@ -53,9 +55,9 @@ type MockRepresentativeRepo struct {
 	mock.Mock
 }
 
-func (m *MockRepresentativeRepo) CreateRepresentative(representative RepresentativeDb) error {
+func (m *MockRepresentativeRepo) CreateRepresentative(representative RepresentativeDb) (int, error) {
 	args := m.Called(representative)
-	return args.Error(0)
+	return args.Int(0), args.Error(1)
 }
 
 func (m *MockRepresentativeRepo) GetRepresentative(representative_id int) (*Representative, error) {

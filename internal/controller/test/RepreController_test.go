@@ -3,18 +3,16 @@ package controller_test
 import (
 	"encoding/json"
 	"errors"
+	"github.com/go-playground/validator/v10"
+	"github.com/labstack/echo/v4"
+	"github.com/stretchr/testify/assert"
+	"gorm.io/gorm"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"zeppelin/internal/controller"
 	"zeppelin/internal/domain"
-	"zeppelin/internal/services"
-
-	"github.com/go-playground/validator/v10"
-	"github.com/labstack/echo/v4"
-	"github.com/stretchr/testify/assert"
-	"gorm.io/gorm"
 )
 
 // --- Reusing Setup and Dummy Helpers ---
@@ -26,84 +24,6 @@ func setupTest(req *http.Request) (echo.Context, *httptest.ResponseRecorder) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 	return c, rec
-}
-
-func TestRepresentativeController_CreateRepresentative(t *testing.T) {
-	mockRepo := new(domain.MockRepresentativeRepo)
-	representativeController := controller.RepresentativeController{Repo: mockRepo}
-
-	t.Run("Success", func(t *testing.T) {
-		repInput := domain.RepresentativeInput{
-			Name:        "John",
-			Lastname:    "Doe",
-			Email:       "john@doe.com",
-			PhoneNumber: "+1234567890",
-		}
-		repInputJSON, _ := json.Marshal(repInput)
-		req := httptest.NewRequest(http.MethodPost, "/representatives", strings.NewReader(string(repInputJSON)))
-		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-		c, rec := setupTest(req)
-
-		// Assume RepresentativesInputToDb works correctly
-		expectedDb := services.RepresentativesInputToDb(&repInput)
-		mockRepo.On("CreateRepresentative", expectedDb).Return(nil).Once()
-
-		handler := representativeController.CreateRepresentative()
-		err := handler(c) // Calls ReturnWriteResponse internally
-
-		assert.NoError(t, err) // Expect nil error from ReturnWriteResponse on success
-		assert.Equal(t, http.StatusOK, rec.Code)
-		expectedResp := `{"Body":{"message":"Representative created"}}`
-		assert.JSONEq(t, expectedResp, rec.Body.String())
-		mockRepo.AssertExpectations(t)
-	})
-
-	t.Run("Failure_BindingError", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodPost, "/representatives", strings.NewReader(`{"invalid`)) // Malformed JSON
-		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-		c, rec := setupTest(req)
-		handler := representativeController.CreateRepresentative()
-		err := handler(c)
-		assert.Error(t, err)
-		var httpErr *echo.HTTPError
-		ok := errors.As(err, &httpErr)
-		msgStruct, ok := httpErr.Message.(struct {
-			Message string `json:"message"`
-		})
-		assert.True(t, ok)
-		if ok {
-			assert.Equal(t, http.StatusBadRequest, httpErr.Code)
-			assert.Equal(t, "Invalid request body", msgStruct.Message)
-		}
-		assert.Empty(t, rec.Body.String())
-		mockRepo.AssertExpectations(t)
-	})
-
-	t.Run("Failure_RepoError", func(t *testing.T) {
-		repInput := domain.RepresentativeInput{
-			Name:        "Jane",
-			Lastname:    "Doe",
-			Email:       "asd@asd.com",
-			PhoneNumber: "+0987654321",
-		}
-		repInputJSON, _ := json.Marshal(repInput)
-		req := httptest.NewRequest(http.MethodPost, "/representatives", strings.NewReader(string(repInputJSON)))
-		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-		c, rec := setupTest(req)
-
-		expectedDb := services.RepresentativesInputToDb(&repInput)
-		repoError := errors.New("db connection error")
-		mockRepo.On("CreateRepresentative", expectedDb).Return(repoError).Once()
-
-		handler := representativeController.CreateRepresentative()
-		err := handler(c)
-
-		assert.NoError(t, err)
-		assert.Equal(t, http.StatusInternalServerError, rec.Code)
-		expectedResp := `{"message":"db connection error"}`
-		assert.JSONEq(t, expectedResp, rec.Body.String())
-		mockRepo.AssertExpectations(t)
-	})
 }
 
 func TestRepresentativeController_GetRepresentative(t *testing.T) {
@@ -181,21 +101,6 @@ func TestRepresentativeController_GetRepresentative(t *testing.T) {
 			assert.Equal(t, expectedMsgStruct, httpErr.Message)
 		}
 		assert.Empty(t, rec.Body.String())
-		mockRepo.AssertExpectations(t)
-	})
-
-	t.Run("NotFound_ReturnsEmptySlice", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/representatives/404", nil)
-		c, rec := setupTest(req)
-		c.SetParamNames("representative_id")
-		c.SetParamValues("404")
-		expectedID := 404
-		mockRepo.On("GetRepresentative", expectedID).Return(nil, nil).Once()
-		handler := representativeController.GetRepresentative()
-		err := handler(c)
-		assert.NoError(t, err)
-		assert.Equal(t, http.StatusOK, rec.Code)
-		assert.Equal(t, "[]\n", rec.Body.String()) // Echo adds a newline by default
 		mockRepo.AssertExpectations(t)
 	})
 

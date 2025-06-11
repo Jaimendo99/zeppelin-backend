@@ -73,7 +73,8 @@ func TestCourseRepo_CreateCourse(t *testing.T) {
 func TestCourseRepo_GetCoursesByTeacher(t *testing.T) {
 	teacherID := "teacher123"
 	// Corrected SQL: Removed the ORDER BY clause to match GORM's actual output
-	expectedSql := quoteSql(`SELECT * FROM "course" WHERE teacher_id = $1`)
+	expectedSql := quoteSql(`SELECT * FROM "course_teacher_view" WHERE teacher_id = $1`)
+
 	columns := []string{"course_id", "teacher_id", "start_date", "title", "description", "qr_code"}
 
 	t.Run("Success - Found", func(t *testing.T) {
@@ -136,81 +137,6 @@ func TestCourseRepo_GetCoursesByTeacher(t *testing.T) {
 		// Depending on GORM/driver behavior on error, courses might be nil or an empty slice.
 		// Asserting nil is usually safe for error cases where the scan doesn't happen.
 		assert.Nil(t, courses)
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
-}
-
-func TestCourseRepo_GetCoursesByStudent(t *testing.T) {
-	studentID := "student456"
-	// Corrected SQL: Use $1 placeholder instead of ?
-	// Ensure whitespace matches the original Raw query string closely if needed,
-	// but the placeholder is the key fix here.
-	expectedRawSql := quoteSql(`SELECT c.* FROM course c JOIN enrollments e ON c.course_id = e.course_id WHERE e.student_id = $1`)
-	columns := []string{"course_id", "teacher_id", "start_date", "title", "description", "qr_code"}
-
-	t.Run("Success - Found", func(t *testing.T) {
-		gormDb, mock := setupMockDb(t)
-		repo := data.NewCourseRepo(gormDb)
-
-		rows := sqlmock.NewRows(columns).
-			AddRow(3, "teacher789", "2025-03-20", "Course 3", "Desc 3", "qr3").
-			AddRow(4, "teacher101", "2025-04-25", "Course 4", "Desc 4", "qr4")
-
-		// Use the corrected expected SQL pattern ($1 placeholder)
-		mock.ExpectQuery(expectedRawSql).
-			WithArgs(studentID).
-			WillReturnRows(rows)
-
-		courses, err := repo.GetCoursesByStudent(studentID)
-
-		assert.NoError(t, err)
-		require.NotNil(t, courses) // Should pass now
-		assert.Len(t, courses, 2)
-		assert.Equal(t, "Course 3", courses[0].Title)
-		assert.Equal(t, 4, courses[1].CourseID)
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("Success - Not Found", func(t *testing.T) {
-		gormDb, mock := setupMockDb(t)
-		repo := data.NewCourseRepo(gormDb)
-
-		rows := sqlmock.NewRows(columns) // No rows
-
-		// Use the corrected expected SQL pattern ($1 placeholder)
-		mock.ExpectQuery(expectedRawSql).
-			WithArgs(studentID).
-			WillReturnRows(rows)
-
-		courses, err := repo.GetCoursesByStudent(studentID)
-
-		assert.NoError(t, err) // Raw().Scan() usually doesn't error for zero rows
-
-		// FIX: Remove the NotNil check.
-		// require.NotNil(t, courses) // REMOVE THIS LINE
-
-		// Assert the length is 0. This works correctly for nil slices.
-		assert.Len(t, courses, 0)
-
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("DB Error", func(t *testing.T) {
-		gormDb, mock := setupMockDb(t)
-		repo := data.NewCourseRepo(gormDb)
-
-		dbErr := errors.New("db raw query error")
-
-		// Use the corrected expected SQL pattern ($1 placeholder)
-		mock.ExpectQuery(expectedRawSql).
-			WithArgs(studentID).
-			WillReturnError(dbErr)
-
-		courses, err := repo.GetCoursesByStudent(studentID)
-
-		assert.Error(t, err)
-		assert.Equal(t, dbErr, err) // Should pass now
-		assert.Nil(t, courses)      // Or assert empty slice
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }

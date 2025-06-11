@@ -53,10 +53,30 @@ type AssignmentWithStudent struct {
 	Email        string `json:"email"`
 }
 
+type StudentCourseProgress struct {
+	UserID               string  `json:"user_id"`
+	CourseID             int     `json:"course_id"`
+	TeacherID            string  `json:"teacher_id"`
+	StartDate            string  `json:"start_date"`
+	Title                string  `json:"title"`
+	Description          string  `json:"description"`
+	QRCode               string  `json:"qr_code"`
+	ModuleCount          int64   `json:"module_count"`
+	VideoCount           int64   `json:"video_count"`
+	TextCount            int64   `json:"text_count"`
+	QuizCount            int64   `json:"quiz_count"`
+	CompletionPercentage float64 `json:"completion_percentage"`
+}
+
+// Indicamos que GORM use la vista en vez de una tabla
+func (StudentCourseProgress) TableName() string {
+	return "student_course_progress_view"
+}
+
 type AssignmentRepo interface {
 	CreateAssignment(userID string, courseID int) error
 	VerifyAssignment(assignmentID int) error
-	GetAssignmentsByStudent(userID string) ([]AssignmentWithCourse, error)
+	GetAssignmentsByStudent(userID string) ([]StudentCourseProgress, error)
 	GetStudentsByCourse(courseID int) ([]AssignmentWithStudent, error)
 	GetCourseIDByQRCode(qrCode string) (int, error)
 	GetAssignmentsByStudentAndCourse(userID string, courseID int) (AssignmentWithCourse, error)

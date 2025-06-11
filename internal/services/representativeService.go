@@ -1,23 +1,16 @@
 package services
 
 import (
-	"database/sql"
 	"strconv"
 	"zeppelin/internal/domain"
 )
 
 func RepresentativesInputToDb(representative *domain.RepresentativeInput) domain.RepresentativeDb {
 	return domain.RepresentativeDb{
-		Name:     representative.Name,
-		Lastname: representative.Lastname,
-		Email: sql.NullString{
-			String: representative.Email,
-			Valid:  representative.Email != "",
-		},
-		PhoneNumber: sql.NullString{
-			String: representative.PhoneNumber,
-			Valid:  representative.PhoneNumber != "",
-		},
+		Name:        representative.Name,
+		Lastname:    representative.Lastname,
+		Email:       representative.Email,
+		PhoneNumber: representative.PhoneNumber,
 	}
 }
 
