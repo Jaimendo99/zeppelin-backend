@@ -3,16 +3,19 @@ package controller_test
 import (
 	"encoding/json"
 	"errors"
-	"github.com/go-playground/validator/v10"
-	"github.com/labstack/echo/v4"
-	"github.com/stretchr/testify/assert"
-	"gorm.io/gorm"
+	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"zeppelin/internal/controller"
 	"zeppelin/internal/domain"
+	"zeppelin/internal/services"
+
+	"github.com/go-playground/validator/v10"
+	"github.com/labstack/echo/v4"
+	"github.com/stretchr/testify/assert"
+	"gorm.io/gorm"
 )
 
 // --- Reusing Setup and Dummy Helpers ---
@@ -101,6 +104,31 @@ func TestRepresentativeController_GetRepresentative(t *testing.T) {
 			assert.Equal(t, expectedMsgStruct, httpErr.Message)
 		}
 		assert.Empty(t, rec.Body.String())
+		mockRepo.AssertExpectations(t)
+	})
+
+	t.Run("RepresentativeNotFound_ReturnsNotFoundError", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet,
+			"/representatives/404", nil)
+		c, _ := setupTest(req)
+
+		c.SetParamNames("representative_id")
+		c.SetParamValues("404")
+		expectedID := 404
+		mockRepo.
+			On("GetRepresentative", expectedID).
+			Return(nil, gorm.ErrRecordNotFound).
+			Once()
+
+		handler := representativeController.GetRepresentative()
+		err := handler(c)
+		he, ok := err.(*echo.HTTPError)
+		require.True(t, ok, "expected *echo.HTTPError, got %T", err)
+		assert.Equal(t, http.StatusNotFound, he.Code)
+		expectedBody := struct {
+			Message string `json:"message"`
+		}{Message: "Record not found"}
+		assert.Equal(t, expectedBody, he.Message)
 		mockRepo.AssertExpectations(t)
 	})
 

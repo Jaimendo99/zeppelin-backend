@@ -20,6 +20,20 @@ type UserDb struct {
 	ParentalConsent *ParentalConsentDb `gorm:"foreignKey:UserID;references:UserID"`
 }
 
+type UserDbRelation struct {
+	UserID   string `gorm:"primaryKey;column:user_id"`
+	Name     string `gorm:"column:name;not null"`
+	Lastname string `gorm:"column:lastname;not null"`
+	Email    string `gorm:"column:email;unique;not null"`
+	TypeID   int    `gorm:"column:type_id"`
+
+	Assignments []AssignmentDbRelation `gorm:"foreignKey:UserID;references:UserID"`
+}
+
+func (UserDbRelation) TableName() string {
+	return "user"
+}
+
 type UserInput struct {
 	Name           string              `json:"name" validate:"required"`
 	Lastname       string              `json:"lastname" validate:"required"`

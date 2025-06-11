@@ -1,5 +1,9 @@
 package domain
 
+import (
+	"time"
+)
+
 type CourseDB struct {
 	CourseID     int    `json:"id" gorm:"primaryKey"`
 	TeacherID    string `json:"teacher_id" gorm:"not null"`
@@ -25,6 +29,173 @@ type CourseTeacher struct {
 	CompletionPercentage float64 `json:"completion_percentage" gorm:"column:completion_percentage"`
 }
 
+type CourseDbRelation struct {
+	CourseID    int       `gorm:"primaryKey;autoIncrement;column:course_id"`
+	TeacherID   string    `gorm:"column:teacher_id;not null"`
+	StartDate   time.Time `gorm:"column:start_date;not null"`
+	Title       string    `gorm:"column:title;size:100;not null"`
+	Description string    `gorm:"column:description"`
+	QrCode      string    `gorm:"column:qr_code;unique"`
+
+	CourseContent []CourseContentDb      `gorm:"foreignKey:CourseID;references:CourseID"`
+	Assignments   []AssignmentDbRelation `gorm:"foreignKey:CourseID;references:CourseID"`
+	Teacher       UserDbRelation         `gorm:"foreignKey:TeacherID;references:UserID"`
+}
+
+type CourseContentDb struct {
+	CourseContentID int       `gorm:"primaryKey;autoIncrement;column:course_content_id"`
+	CourseID        int       `gorm:"column:course_id;not null"`
+	Module          string    `gorm:"column:module;size:100;not null"`
+	ModuleIndex     int       `gorm:"column:module_index;not null"`
+	CreatedAt       time.Time `gorm:"column:created_at;autoCreateTime"`
+	IsActive        bool      `gorm:"column:is_active;default:true"`
+
+	Content []ContentDb `gorm:"foreignKey:CourseContentID;references:CourseContentID"`
+}
+
+func (CourseContentDb) TableName() string {
+	return "course_content"
+}
+
+type ContentDb struct {
+	ContentID       string `json:"content_id" gorm:"primaryKey"`
+	CourseContentID int    `json:"course_content_id" gorm:"column:course_content_id;not null"`
+	ContentTypeID   int    `json:"content_type_id" gorm:"not null"`
+	Title           string `json:"title" gorm:"size:100;not null"`
+	Url             string `json:"url" gorm:"size:255"`
+	Description     string `json:"description" gorm:"size:255"`
+	SectionIndex    int    `json:"section_index" gorm:"not null"`
+}
+
+func (ContentDb) TableName() string {
+	return "content"
+}
+
+type CourseDetailOutput struct {
+	CourseID    int       `json:"id"`
+	Title       string    `json:"title"`
+	StartDate   time.Time `json:"start_date"`
+	Description string    `json:"description"`
+
+	Teacher TeacherOutput  `json:"teacher"`
+	Modules []ModuleOutput `json:"modules"`
+}
+
+type TeacherOutput struct {
+	UserID   string `json:"user_id"`
+	Name     string `json:"name"`
+	Lastname string `json:"lastname"`
+	Email    string `json:"email"`
+}
+
+type ContentOutput struct {
+	ContentID     string `json:"content_id"`
+	ContentTypeID int    `json:"content_type_id"`
+	Title         string `json:"title"`
+	Description   string `json:"description"`
+	Url           string `json:"url"`
+	SectionIndex  int    `json:"section_index"`
+}
+
+type ModuleSummary struct {
+	NumModules      int    `json:"num_modules"`
+	LastModuleIndex int    `json:"last_module_index"`
+	LastModuleName  string `json:"last_module_name"`
+}
+
+type ModuleOutput struct {
+	ModuleID    int             `json:"module_id"`
+	ModuleName  string          `json:"module_name"`
+	ModuleIndex int             `json:"module_index"`
+	Content     []ContentOutput `json:"content"`
+}
+
+type CourseOutput struct {
+	CourseID       int           `json:"id"`
+	Title          string        `json:"title"`
+	StartDate      time.Time     `json:"start_date"`
+	Description    string        `json:"description"`
+	Teacher        TeacherOutput `json:"teacher"`
+	ModulesSummary ModuleSummary `json:"modules_summary"`
+}
+
+func (c *CourseDbRelation) ToCourseDetailOutput() CourseDetailOutput {
+	output := CourseDetailOutput{
+		CourseID:    c.CourseID,
+		Title:       c.Title,
+		StartDate:   c.StartDate,
+		Description: c.Description,
+		Teacher: TeacherOutput{
+			UserID:   c.Teacher.UserID,
+			Name:     c.Teacher.Name,
+			Lastname: c.Teacher.Lastname,
+			Email:    c.Teacher.Email,
+		},
+		Modules: []ModuleOutput{}, // Initialize the slice
+	}
+
+	for _, moduleDB := range c.CourseContent {
+		moduleOut := ModuleOutput{
+			ModuleID:    moduleDB.CourseContentID,
+			ModuleName:  moduleDB.Module,
+			ModuleIndex: moduleDB.ModuleIndex,
+			Content:     []ContentOutput{}, // Initialize the slice
+		}
+		for _, contentDB := range moduleDB.Content {
+			contentOut := ContentOutput{
+				ContentID:     contentDB.ContentID,
+				ContentTypeID: contentDB.ContentTypeID,
+				Title:         contentDB.Title,
+				Description:   contentDB.Description,
+				Url:           contentDB.Url,
+				SectionIndex:  contentDB.SectionIndex,
+			}
+			moduleOut.Content = append(moduleOut.Content, contentOut)
+		}
+		output.Modules = append(output.Modules, moduleOut)
+	}
+
+	return output
+}
+
+func (c *CourseDbRelation) ToCourseOutput() CourseOutput {
+	output := CourseOutput{
+		CourseID:    c.CourseID,
+		Title:       c.Title,
+		StartDate:   c.StartDate,
+		Description: c.Description,
+		Teacher: TeacherOutput{
+			UserID:   c.Teacher.UserID,
+			Name:     c.Teacher.Name,
+			Lastname: c.Teacher.Lastname,
+			Email:    c.Teacher.Email,
+		},
+		ModulesSummary: ModuleSummary{}, // Initialize the slice
+	}
+	num := len(c.CourseContent)
+	lastModuleIndex := 0
+	lastModuleName := ""
+	for _, module := range c.CourseContent {
+		if module.ModuleIndex > lastModuleIndex {
+			lastModuleIndex = module.ModuleIndex
+			lastModuleName = module.Module
+		}
+	}
+	module := ModuleSummary{
+		NumModules:      num,
+		LastModuleIndex: lastModuleIndex,
+		LastModuleName:  lastModuleName,
+	}
+
+	output.ModulesSummary = module
+
+	return output
+}
+
+func (CourseDbRelation) TableName() string {
+	return "course"
+}
+
 type CourseInput struct {
 	StartDate   string `json:"start_date" validate:"required"`
 	Title       string `json:"title" validate:"required"`
@@ -34,7 +205,10 @@ type CourseInput struct {
 type CourseRepo interface {
 	CreateCourse(course CourseDB) error
 	GetCoursesByTeacher(teacherID string) ([]CourseTeacher, error)
+	GetCoursesByStudent(studentID string) ([]CourseDB, error)
+	GetCoursesByStudent2(studentID string) ([]CourseDbRelation, error)
 	GetCourseByTeacherAndCourseID(teacherID string, courseID int) (CourseDB, error)
+	GetCourse(studentID, courseID string) (CourseDbRelation, error)
 }
 
 func (CourseDB) TableName() string {

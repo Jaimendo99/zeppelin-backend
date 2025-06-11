@@ -16,24 +16,6 @@ import (
 	"gorm.io/gorm"
 )
 
-type MockNotificationRepo struct {
-	SendToQ func(notification domain.NotificationQueue, queueName string) error
-	// ConsumeFromQueue is not needed for testing SendNotification
-}
-
-func (m *MockNotificationRepo) SendToQueue(notification domain.NotificationQueue, queueName string) error {
-	if m.SendToQ != nil {
-		return m.SendToQ(notification, queueName)
-	}
-	return errors.New("SendToQ function not implemented in mock")
-}
-
-// ConsumeFromQueue needs to be implemented to satisfy the interface, but can be a no-op for these tests
-func (m *MockNotificationRepo) ConsumeFromQueue(queueName string) error {
-	// No implementation needed for SendNotification tests
-	return errors.New("ConsumeFromQueue not implemented in mock for testing SendNotification")
-}
-
 func TestSendNotification_Success(t *testing.T) {
 	// Define a valid notification payload
 	// Add `validate:"required"` tags to NotificationQueue struct for validation tests
@@ -191,55 +173,6 @@ func TestSendNotification_RepoError(t *testing.T) {
 	}
 }
 
-type MockAssignmentRepo struct {
-	CreateA           func(userID string, courseID int) error
-	VerifyA           func(assignmentID int) error
-	GetAssignmentsByS func(userID string) ([]domain.StudentCourseProgress, error)
-	GetStudentsByC    func(courseID int) ([]domain.AssignmentWithStudent, error)
-	GetCourseIDByQR   func(qrCode string) (int, error)
-}
-
-func (m *MockAssignmentRepo) GetAssignmentsByStudentAndCourse(userID string, courseID int) (domain.AssignmentWithCourse, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *MockAssignmentRepo) CreateAssignment(userID string, courseID int) error {
-	if m.CreateA != nil {
-		return m.CreateA(userID, courseID)
-	}
-	return errors.New("CreateA function not implemented in mock")
-}
-
-func (m *MockAssignmentRepo) VerifyAssignment(assignmentID int) error {
-	if m.VerifyA != nil {
-		return m.VerifyA(assignmentID)
-	}
-	return errors.New("VerifyA function not implemented in mock")
-}
-
-func (m *MockAssignmentRepo) GetAssignmentsByStudent(userID string) ([]domain.StudentCourseProgress, error) {
-	if m.GetAssignmentsByS != nil {
-		return m.GetAssignmentsByS(userID)
-	}
-	return nil, errors.New("GetAssignmentsByS function not implemented in mock")
-}
-
-func (m *MockAssignmentRepo) GetStudentsByCourse(courseID int) ([]domain.AssignmentWithStudent, error) {
-	if m.GetStudentsByC != nil {
-		return m.GetStudentsByC(courseID)
-	}
-	return nil, errors.New("GetStudentsByC function not implemented in mock")
-}
-
-func (m *MockAssignmentRepo) GetCourseIDByQRCode(qrCode string) (int, error) {
-	if m.GetCourseIDByQR != nil {
-		return m.GetCourseIDByQR(qrCode)
-	}
-	return 0, errors.New("GetCourseIDByQR function not implemented in mock")
-}
-
-// --- GetAssignmentsByStudent Tests ---
 
 func TestGetAssignmentsByStudent_Success(t *testing.T) {
 	testUserID := "student-1"

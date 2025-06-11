@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"zeppelin/internal/config"
 	"zeppelin/internal/domain"
 
 	"github.com/labstack/echo/v4"
@@ -25,6 +26,12 @@ type QuizController struct {
 	GetTeacherQuizContent func(bucket, key string) ([]byte, error)
 	GeneratePresignedURL  func(bucket, key string) (string, error)
 }
+
+// Variables for testing - these will be overriden in tests
+var (
+	ConfigUploadJSONToR2 = config.UploadJSONToR2
+	ConfigGetR2Object    = config.GetR2Object
+)
 
 func (c *QuizController) SubmitQuiz() echo.HandlerFunc {
 	return func(e echo.Context) error {

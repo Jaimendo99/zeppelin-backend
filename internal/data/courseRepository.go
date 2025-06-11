@@ -27,6 +27,47 @@ func (r *courseRepo) GetCoursesByTeacher(teacherID string) ([]domain.CourseTeach
 	return courses, result.Error
 }
 
+func (r *courseRepo) GetCoursesByStudent(studentID string) ([]domain.CourseDB, error) {
+	var courses []domain.CourseDB
+	result := r.db.Raw(`
+		SELECT c.* FROM course c
+        JOIN enrollments e ON c.course_id = e.course_id
+        WHERE e.student_id = ?`, studentID).Scan(&courses)
+	return courses, result.Error
+}
+
+func (r *courseRepo) GetCoursesByStudent2(studentID string) ([]domain.CourseDbRelation, error) {
+	var assignments []domain.AssignmentDbRelation
+	result := r.db.Where("user_id = ?", studentID).
+		Preload("Course.Teacher").
+		Preload("Course.CourseContent").
+		// Preload("Course.CourseContent.Content").
+		Find(&assignments)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	var courses []domain.CourseDbRelation
+	for _, assignment := range assignments {
+		courses = append(courses, assignment.Course)
+	}
+	return courses, nil
+}
+
+func (r *courseRepo) GetCourse(studentID, courseID string) (*domain.CourseDbRelation, error) {
+	var assignments domain.AssignmentDbRelation
+	result := r.db.Where("user_id = ? AND course_id = ?", studentID, courseID).
+		Preload("Course.Teacher").
+		Preload("Course.CourseContent").
+		Preload("Course.CourseContent.Content").
+		First(&assignments)
+
+	if result.Error != nil {
+		return &domain.CourseDbRelation{}, result.Error
+	}
+	return &assignments.Course, nil
+}
+
 func (r *courseRepo) GetCourseByTeacherAndCourseID(teacherID string, courseID int) (domain.CourseDB, error) {
 	var course domain.CourseDB
 	err := r.db.Where("teacher_id = ? AND course_id = ?", teacherID, courseID).First(&course).Error

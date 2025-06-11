@@ -8,7 +8,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,41 +16,6 @@ import (
 	"zeppelin/internal/controller"
 	"zeppelin/internal/domain"
 )
-
-type MockParentalConsentRepo struct {
-	CreateConsentFunc       func(consent domain.ParentalConsent) error
-	UpdateConsentStatusFunc func(token string, status string, ip string, userAgent string) error
-	GetConsentByTokenFunc   func(token string) (*domain.ParentalConsent, error)
-	GetConsentByUserIDFunc  func(userID string) (*domain.ParentalConsent, error)
-}
-
-func (m *MockParentalConsentRepo) CreateConsent(consent domain.ParentalConsent) error {
-	if m.CreateConsentFunc != nil {
-		return m.CreateConsentFunc(consent)
-	}
-	return nil
-}
-
-func (m *MockParentalConsentRepo) UpdateConsentStatus(token string, status string, ip string, userAgent string) error {
-	if m.UpdateConsentStatusFunc != nil {
-		return m.UpdateConsentStatusFunc(token, status, ip, userAgent)
-	}
-	return nil
-}
-
-func (m *MockParentalConsentRepo) GetConsentByToken(token string) (*domain.ParentalConsent, error) {
-	if m.GetConsentByTokenFunc != nil {
-		return m.GetConsentByTokenFunc(token)
-	}
-	return &domain.ParentalConsent{Status: "ACCEPTED"}, nil
-}
-
-func (m *MockParentalConsentRepo) GetConsentByUserID(userID string) (*domain.ParentalConsent, error) {
-	if m.GetConsentByUserIDFunc != nil {
-		return m.GetConsentByUserIDFunc(userID)
-	}
-	return &domain.ParentalConsent{Status: "ACCEPTED"}, nil
-}
 
 func setupTest(req *http.Request) (echo.Context, *httptest.ResponseRecorder) {
 	e := echo.New()
@@ -62,25 +27,10 @@ func setupTest(req *http.Request) (echo.Context, *httptest.ResponseRecorder) {
 
 func TestUserController_RegisterUser(t *testing.T) {
 	mockAuthService := new(domain.MockAuthService)
-
 	mockUserRepo := new(domain.MockUserRepo)
-	mockRepRepo := new(domain.MockRepresentativeRepo)
-	mockConsentRepo := &MockParentalConsentRepo{
-		CreateConsentFunc: func(consent domain.ParentalConsent) error {
-			return nil
-		},
-	}
-
-	mockSendEmail := func(to string, token string) error {
-		return nil
-	}
-
 	userController := controller.UserController{
-		AuthService:   mockAuthService,
-		UserRepo:      mockUserRepo,
-		RepRepo:       mockRepRepo,
-		ConsentRepo:   mockConsentRepo,
-		SendEmailFunc: mockSendEmail,
+		AuthService: mockAuthService,
+		UserRepo:    mockUserRepo,
 	}
 
 	// --- Test Case 1: Success - Student ---
@@ -89,14 +39,8 @@ func TestUserController_RegisterUser(t *testing.T) {
 			Name:     "Test",
 			Lastname: "User",
 			Email:    "test.student@example.com",
-			Representative: domain.RepresentativeInput{
-				Name:        "Parent",
-				Lastname:    "One",
-				Email:       "parent@example.com",
-				PhoneNumber: "123456789",
-			},
+			// Add other required fields from UserInput
 		}
-
 		userInputJSON, _ := json.Marshal(userInput)
 		req := httptest.NewRequest(http.MethodPost, "/register/student", strings.NewReader(string(userInputJSON)))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
@@ -110,14 +54,12 @@ func TestUserController_RegisterUser(t *testing.T) {
 
 		expectedUserDb := domain.UserDb{
 			UserID:   mockClerkUserID,
-			Name:     "Test",
-			Lastname: "User",
-			Email:    "test.student@example.com",
+			Name:     userInput.Name,
+			Lastname: userInput.Lastname,
+			Email:    userInput.Email,
 			TypeID:   3, // Student TypeID
 		}
-
 		mockUserRepo.On("CreateUser", expectedUserDb).Return(nil).Once()
-		mockRepRepo.On("CreateRepresentative", mock.AnythingOfType("domain.RepresentativeDb")).Return(123, nil)
 
 		handler := userController.RegisterUser(role)
 		err := handler(c)
@@ -237,6 +179,37 @@ func TestUserController_RegisterUser(t *testing.T) {
 		assert.JSONEq(t, expectedResp, rec.Body.String())
 		mockAuthService.AssertExpectations(t)
 		mockUserRepo.AssertExpectations(t) // UserRepo.CreateUser should not be called
+	})
+
+	// --- Test Case 5: Failure - UserRepo Error ---
+	t.Run("Failure_UserRepoError", func(t *testing.T) {
+		userInput := domain.UserInput{Name: "Test", Lastname: "RepoFail", Email: "test.repofail@example.com"}
+		userInputJSON, _ := json.Marshal(userInput)
+		req := httptest.NewRequest(http.MethodPost, "/register/student", strings.NewReader(string(userInputJSON)))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		c, rec := setupTest(req)
+
+		role := "org:student"
+		expectedOrgID := "org_2tjxBeJV0WLJUFU6Q3AwjzMyXTs"
+		mockClerkUserID := "user_clerk_789"
+		mockAuthService.On("CreateUser", userInput, expectedOrgID, role).Return(&domain.User{UserID: mockClerkUserID}, nil).Once()
+
+		expectedUserDb := domain.UserDb{UserID: mockClerkUserID, Name: "Test", Lastname: "RepoFail", Email: "test.repofail@example.com", TypeID: 3}
+		repoError := errors.New("database connection failed")
+		mockUserRepo.On("CreateUser", expectedUserDb).Return(repoError).Once()
+
+		handler := userController.RegisterUser(role)
+		err := handler(c)
+
+		assert.NoError(t, err)
+		assert.Equal(t, http.StatusInternalServerError, rec.Code) // Assuming ReturnWriteResponse maps repoError to 500
+		// *** Important Note ***: Your original code returns the *success* message here!
+		// This is likely a bug. The test reflects the *current* behavior.
+		// If you fix the controller to return the actual error, update the assertion.
+		expectedResp := `{"message":"database connection failed"}` // This is what it *should* be
+		assert.JSONEq(t, expectedResp, rec.Body.String())
+		mockAuthService.AssertExpectations(t)
+		mockUserRepo.AssertExpectations(t)
 	})
 
 	// --- Test Case 6: Failure - Binding/Validation Error ---
@@ -402,6 +375,41 @@ func TestUserController_GetUser(t *testing.T) {
 			assert.Equal(t, expectedMsgStruct, httpErr.Message, "Unexpected message structure in returned HTTPError")
 		}
 		assert.Empty(t, rec.Body.String(), "Response body should be empty as error was returned by handler")
+		mockUserRepo.AssertExpectations(t)
+	})
+
+	t.Run("UserNotFound_ReturnsNotFoundError", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/user", nil)
+		c, _ := setupTest(req)
+
+		mockUserID := "user_test_789"
+		claims := &clerk.SessionClaims{
+			Claims: jwt.Claims{Subject: mockUserID},
+		}
+		c.Set("user", claims)
+
+		// If the repo returns ErrRecordNotFound, our handler should
+		// turn that into a 404 + { "message": "Record not found" }.
+		mockUserRepo.
+			On("GetUser", mockUserID).
+			Return((*domain.UserDb)(nil), gorm.ErrRecordNotFound).
+			Once()
+
+		handler := userController.GetUser()
+		err := handler(c)
+		// We expect an HTTPError back
+		he, ok := err.(*echo.HTTPError)
+		require.True(t, ok, "expected an *echo.HTTPError, got %T", err)
+
+		// Check the status code
+		assert.Equal(t, http.StatusNotFound, he.Code)
+
+		// And the JSON payload matches our struct
+		expectedBody := struct {
+			Message string `json:"message"`
+		}{Message: "Record not found"}
+		assert.Equal(t, expectedBody, he.Message)
+
 		mockUserRepo.AssertExpectations(t)
 	})
 

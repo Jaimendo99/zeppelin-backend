@@ -3,9 +3,10 @@ package controller
 import (
 	"crypto/rand"
 	"encoding/base32"
-	"github.com/labstack/echo/v4"
 	"strings"
 	"zeppelin/internal/domain"
+
+	"github.com/labstack/echo/v4"
 )
 
 type CourseController struct {
@@ -52,6 +53,57 @@ func (c *CourseController) GetCoursesByTeacher() echo.HandlerFunc {
 
 		courses, err := c.Repo.GetCoursesByTeacher(userID)
 		return ReturnReadResponse(e, err, courses)
+	}
+}
+
+func (c *CourseController) GetCoursesByStudent() echo.HandlerFunc {
+	return func(e echo.Context) error {
+		role := e.Get("user_role").(string)
+		userID := e.Get("user_id").(string)
+
+		if role != "org:student" {
+			return ReturnReadResponse(e, echo.NewHTTPError(403, "Solo los estudiantes pueden ver sus cursos"), nil)
+		}
+
+		courses, err := c.Repo.GetCoursesByStudent(userID)
+		return ReturnReadResponse(e, err, courses)
+	}
+}
+
+func (c *CourseController) GetCoursesByStudent2() echo.HandlerFunc {
+	return func(e echo.Context) error {
+		role := e.Get("user_role").(string)
+		userID := e.Get("user_id").(string)
+
+		if role != "org:student" {
+			return ReturnReadResponse(e, echo.NewHTTPError(403, "Solo los estudiantes pueden ver sus cursos"), nil)
+		}
+		courses, err := c.Repo.GetCoursesByStudent2(userID)
+		var coursesOutput []domain.CourseOutput
+		for _, course := range courses {
+			coursesOutput = append(coursesOutput, course.ToCourseOutput())
+		}
+
+		return ReturnReadResponse(e, err, coursesOutput)
+	}
+}
+
+func (c *CourseController) GetCourse() echo.HandlerFunc {
+	return func(e echo.Context) error {
+		role := e.Get("user_role").(string)
+		userID := e.Get("user_id").(string)
+
+		if role != "org:student" {
+			return ReturnReadResponse(e, echo.NewHTTPError(
+				403, "Solo los estudiantes pueden ver sus cursos"), nil)
+		}
+		courseID := e.Param("course_id")
+		course, err := c.Repo.GetCourse(userID, courseID)
+		if err != nil {
+			return ReturnReadResponse(e, err, nil)
+		}
+		courseDetail := course.ToCourseDetailOutput()
+		return ReturnReadResponse(e, err, courseDetail)
 	}
 }
 

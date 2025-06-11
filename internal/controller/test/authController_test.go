@@ -18,53 +18,6 @@ import (
 	"zeppelin/internal/controller"
 )
 
-type MockClerk struct {
-	mock.Mock
-}
-
-func (m *MockClerk) VerifyToken(token string, opts ...clerk.VerifyTokenOption) (*clerk.SessionClaims, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *MockClerk) DecodeToken(token string) (*clerk.TokenClaims, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *MockClerk) CreateUser(params clerk.CreateUserParams) (*clerk.User, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *MockClerk) CreateOrganizationMembership(orgID string, params clerk.CreateOrganizationMembershipParams) (*clerk.OrganizationMembership, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (m *MockClerk) NewRequest(method, url string, body ...interface{}) (*http.Request, error) {
-	// We pass body as separate args to Called for easier matching if needed
-	allArgs := []interface{}{method, url}
-	allArgs = append(allArgs, body...)
-	args := m.Called(allArgs...)
-
-	// Return value handling
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*http.Request), args.Error(1)
-}
-
-func (m *MockClerk) Do(req *http.Request, v interface{}) (*http.Response, error) {
-	args := m.Called(req, v) // Pass 'v' so mock.Run can access it
-
-	// Return value handling
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*http.Response), args.Error(1)
-}
-
 func NewMockClerk(t *testing.T) *MockClerk {
 	m := new(MockClerk)
 	m.Mock.Test(t)

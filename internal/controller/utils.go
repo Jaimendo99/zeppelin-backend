@@ -19,7 +19,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func ReturnReadResponse(c echo.Context, err error, body any) error {
+func ReturnReadResponse(e echo.Context, err error, body any) error {
 	if err != nil {
 		if errors.Is(err, gorm.ErrInvalidData) {
 			return echo.NewHTTPError(http.StatusBadRequest, struct {
@@ -51,21 +51,32 @@ func ReturnReadResponse(c echo.Context, err error, body any) error {
 			Message string `json:"message"`
 		}{Message: "Internal server error"})
 	}
-
-	// Manejar body vacío o nulo
-	if body == nil {
-		return c.JSON(http.StatusOK, []any{})
+	// Handle nil body or specific nil types
+	if body == nil { // Catches truly nil interfaces passed as body
+		return e.JSON(http.StatusOK, []any{})
 	}
 
-	// Verificar si es un puntero nulo
-	if reflect.ValueOf(body).Kind() == reflect.Ptr && reflect.ValueOf(body).IsNil() {
-		return echo.NewHTTPError(http.StatusNotFound, struct {
-			Message string `json:"message"`
-		}{Message: "Resource not found"})
+	val := reflect.ValueOf(body)
+	kind := val.Kind()
+
+	switch kind {
+	case reflect.Ptr:
+		if val.IsNil() {
+			return echo.NewHTTPError(http.StatusNotFound, struct {
+				Message string `json:"message"`
+			}{Message: "Resource not found"})
+		}
+	// Nillable types that should result in an empty array if nil
+	case reflect.Interface, reflect.Slice, reflect.Map, reflect.Chan, reflect.Func:
+		if val.IsNil() {
+			return e.JSON(http.StatusOK, []any{})
+		}
+	// For reflect.Struct, other non-nillable types, or non-nil values of the above,
+	// we fall through to the default behavior of returning the body.
 	}
 
 	// Devolver la respuesta
-	return c.JSON(http.StatusOK, body)
+	return e.JSON(http.StatusOK, body)
 }
 
 type ErrorWithLocation struct {
@@ -115,6 +126,8 @@ func ReturnWriteResponse(e echo.Context, err error, body any) error {
 			return e.JSON(http.StatusConflict, errorResponse("Duplicated key"))
 		case errors.Is(err, gorm.ErrInvalidData):
 			return e.JSON(http.StatusBadRequest, errorResponse("Invalid request"))
+		case errors.Is(err, gorm.ErrUnsupportedRelation):
+			return e.JSON(http.StatusInternalServerError, errorResponse("Realtion doesnt exist"))
 		case errors.Is(err, numError):
 			return e.JSON(http.StatusBadRequest, errorResponse("Invalid number format"))
 		case errors.Is(err, gorm.ErrRecordNotFound):
