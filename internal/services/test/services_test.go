@@ -27,11 +27,8 @@ func TestRepresetativeInputToDb_FullFields(t *testing.T) {
 	assert.Equal(t, input.Name, dbModel.Name, "Name should match")
 	assert.Equal(t, input.Lastname, dbModel.Lastname, "Lastname should match")
 
-	assert.True(t, dbModel.Email.Valid, "Email.Valid should be true")
-	assert.Equal(t, input.Email, dbModel.Email.String, "Email should match")
-
-	assert.True(t, dbModel.PhoneNumber.Valid, "PhoneNumber.Valid should be true")
-	assert.Equal(t, input.PhoneNumber, dbModel.PhoneNumber.String, "PhoneNumber should match")
+	assert.Equal(t, input.Email, dbModel.Email, "Email should match")
+	assert.Equal(t, input.PhoneNumber, dbModel.PhoneNumber, "PhoneNumber should match")
 }
 
 func TestRepresetativeInputToDb_EmptyFields(t *testing.T) {
@@ -47,13 +44,10 @@ func TestRepresetativeInputToDb_EmptyFields(t *testing.T) {
 	assert.Equal(t, input.Name, dbModel.Name, "Name should match")
 	assert.Equal(t, input.Lastname, dbModel.Lastname, "Lastname should match")
 
-	assert.False(t, dbModel.Email.Valid, "Email.Valid should be false for empty input")
-	assert.Equal(t, "", dbModel.Email.String, "Email should be empty")
+	assert.Equal(t, "", dbModel.Email, "Email should be empty")
+	assert.Equal(t, "", dbModel.PhoneNumber, "PhoneNumber should be empty")
 
-	assert.False(t, dbModel.PhoneNumber.Valid, "PhoneNumber.Valid should be false for empty input")
-	assert.Equal(t, "", dbModel.PhoneNumber.String, "PhoneNumber should be empty")
 }
-
 func TestParamToId_Valid(t *testing.T) {
 	id, err := services.ParamToId("123")
 	assert.NoError(t, err, "Expected no error for valid numeric string")
