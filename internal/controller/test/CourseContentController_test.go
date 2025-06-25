@@ -285,10 +285,17 @@ func mockGeneratePresignedURL(bucket, key string) (string, error) {
 }
 
 // Tests
+
 func TestCourseContentController_GetCourseContentTeacher_Success(t *testing.T) {
 	userID := "teacher-123"
 	courseID := 1
-	createdAt := time.Now().Format(time.RFC3339Nano) // Match actual format
+
+	// *** FIX: Define a fixed timestamp for consistency ***
+	// We'll use this precise time for both the mock data and the expected JSON.
+	// You can parse the exact timestamp from your previous test output's 'expected' value
+	// or use a deliberately chosen time. For this example, let's use a specific one.
+	fixedCreatedAt := time.Date(2025, time.June, 25, 1, 34, 30, 801734238, time.UTC) // Use UTC to match "Z" suffix
+
 	mockContent := []domain.CourseContentWithDetails{
 		{
 			CourseContentDB: domain.CourseContentDB{
@@ -296,7 +303,7 @@ func TestCourseContentController_GetCourseContentTeacher_Success(t *testing.T) {
 				CourseID:        courseID,
 				Module:          "Module 1",
 				ModuleIndex:     1,
-				CreatedAt:       time.Now(),
+				CreatedAt:       fixedCreatedAt, // *** Use the fixed timestamp here ***
 			},
 
 			Details: []domain.Content{
@@ -342,7 +349,7 @@ func TestCourseContentController_GetCourseContentTeacher_Success(t *testing.T) {
 	mockContentRepo := MockCourseContentRepo{
 		GetContentByCourseT: func(cid int) ([]domain.CourseContentWithDetails, error) {
 			assert.Equal(t, courseID, cid)
-			return mockContent, nil
+			return mockContent, nil // Return your mock content
 		},
 	}
 
@@ -356,41 +363,45 @@ func TestCourseContentController_GetCourseContentTeacher_Success(t *testing.T) {
 	err := handler(c)
 	if assert.NoError(t, err) {
 		assert.Equal(t, http.StatusOK, rec.Code)
-		// Include all fields from actual response
+
+		// *** FIX: Format the fixed timestamp for the expected JSON string ***
+		createdAtFormatted := fixedCreatedAt.Format(time.RFC3339Nano)
+
 		expectedJSON := fmt.Sprintf(`[
-			{
-				"contents": null,
-				"course_content_id": 1,
-				"course_id": 1,
-				"created_at": "%s",
-				"module": "Module 1",
-				"module_index": 1,
-				"details": [
-					{
-						"UserContent": null,
-						"content_id": "content-1",
-						"course_content_id": 1,
-						"content_type_id": 1,
-						"title": "Video 1",
-						"url": "http://original-video.com",
-						"description": "Video desc",
-						"section_index": 1,
-						"is_active": true
-					},
-					{
-						"UserContent": null,
-						"content_id": "content-2",
-						"course_content_id": 1,
-						"content_type_id": 2,
-						"title": "Quiz 1",
-						"url": "https://mock-signed-url.com/focused/1/text/teacher/content-2.json",
-						"description": "Quiz desc",
-						"section_index": 2,
-						"is_active": true
-					}
-				]
-			}
-		]`, createdAt)
+           {
+              "contents": null,
+              "course_content_id": 1,
+              "course_id": 1,
+              "created_at": "%s", 
+              "module": "Module 1",
+              "module_index": 1,
+              "details": [
+                 {
+                    "UserContent": null,
+                    "content_id": "content-1",
+                    "course_content_id": 1,
+                    "content_type_id": 1,
+                    "title": "Video 1",
+                    "url": "http://original-video.com",
+                    "description": "Video desc",
+                    "section_index": 1,
+                    "is_active": true
+                 },
+                 {
+                    "UserContent": null,
+                    "content_id": "content-2",
+                    "course_content_id": 1,
+                    "content_type_id": 2,
+                    "title": "Quiz 1",
+                    "url": "https://mock-signed-url.com/focused/1/text/teacher/content-2.json",
+                    "description": "Quiz desc",
+                    "section_index": 2,
+                    "is_active": true
+                 }
+              ]
+           }
+        ]`, createdAtFormatted) // Pass the formatted fixed timestamp
+
 		assert.JSONEq(t, expectedJSON, rec.Body.String())
 	}
 }
