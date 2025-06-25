@@ -790,7 +790,7 @@ func (m MockAssignmentRepoLocal) VerifyAssignment(assignmentID int) error {
 	panic("implement me")
 }
 
-func (m MockAssignmentRepoLocal) GetAssignmentsByStudent(userID string) ([]domain.AssignmentWithCourse, error) {
+func (m MockAssignmentRepoLocal) GetAssignmentsByStudent(userID string) ([]domain.StudentCourseProgress, error) {
 	//TODO implement me
 	panic("implement me")
 }

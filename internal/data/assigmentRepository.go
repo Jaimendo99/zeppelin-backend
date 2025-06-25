@@ -45,15 +45,13 @@ func (r *assignmentRepo) VerifyAssignment(assignmentID int) error {
 	return result.Error
 }
 
-func (r *assignmentRepo) GetAssignmentsByStudent(userID string) ([]domain.AssignmentWithCourse, error) {
-	var assignments []domain.AssignmentWithCourse
-	result := r.db.Raw(`
-        SELECT a.assignment_id, a.assigned_at, a.is_active, a.is_verify,
-               c.course_id, c.teacher_id, c.start_date, c.title, c.description, c.qr_code
-        FROM assignment a
-        JOIN course c ON a.course_id = c.course_id
-        WHERE a.user_id = ?`, userID).Scan(&assignments)
-	return assignments, result.Error
+func (r *assignmentRepo) GetAssignmentsByStudent(userID string) ([]domain.StudentCourseProgress, error) {
+	var progresses []domain.StudentCourseProgress
+	err := r.db.
+		Table(domain.StudentCourseProgress{}.TableName()).
+		Where("user_id = ?", userID).
+		Scan(&progresses).Error
+	return progresses, err
 }
 
 func (r *assignmentRepo) GetStudentsByCourse(courseID int) ([]domain.AssignmentWithStudent, error) {

@@ -18,7 +18,15 @@ type MockCourseRepo struct {
 	CreateC                        func(course domain.CourseDB) error
 	GetCoursesByT                  func(teacherID string) ([]domain.CourseDB, error)
 	GetCoursesByS                  func(studentID string) ([]domain.CourseDB, error)
-	GetCourseByTeacherAndCourseIDT func(teacherID string, courseID int) (domain.CourseDB, error)
+	GetCoursesByTeacherT           func(string) ([]domain.CourseTeacher, error)
+	GetCourseByTeacherAndCourseIDT func(string, int) (domain.CourseDB, error)
+}
+
+func (m MockCourseRepo) GetCoursesByTeacher(teacherID string) ([]domain.CourseTeacher, error) {
+	if m.GetCoursesByTeacherT != nil {
+		return m.GetCoursesByTeacherT(teacherID)
+	}
+	return nil, errors.New("GetCoursesByTeacher function not implemented in mock")
 }
 
 func (m MockCourseRepo) GetCourseByTeacherAndCourseID(teacherID string, courseID int) (domain.CourseDB, error) {
@@ -33,13 +41,6 @@ func (m MockCourseRepo) CreateCourse(course domain.CourseDB) error {
 		return m.CreateC(course)
 	}
 	return errors.New("CreateC function not implemented in mock")
-}
-
-func (m MockCourseRepo) GetCoursesByTeacher(teacherID string) ([]domain.CourseDB, error) {
-	if m.GetCoursesByT != nil {
-		return m.GetCoursesByT(teacherID)
-	}
-	return nil, errors.New("GetCoursesByT function not implemented in mock")
 }
 
 func (m MockCourseRepo) GetCoursesByStudent(studentID string) ([]domain.CourseDB, error) {
@@ -218,7 +219,7 @@ func TestCreateCourse_BadRequestValidation(t *testing.T) {
 func TestGetCoursesByTeacher_Success(t *testing.T) {
 	testUserID := "teacher-789"
 	testRole := "org:teacher"
-	mockCourses := []domain.CourseDB{
+	mockCourses := []domain.CourseTeacher{
 		{CourseID: 1, TeacherID: testUserID, Title: "Advanced Go", QRCode: "abcd12"},
 		{CourseID: 2, TeacherID: testUserID, Title: "Echo Framework", QRCode: "efgh34"},
 	}
@@ -231,7 +232,7 @@ func TestGetCoursesByTeacher_Success(t *testing.T) {
 	c.Set("user_role", testRole)
 
 	mockRepo := MockCourseRepo{
-		GetCoursesByT: func(teacherID string) ([]domain.CourseDB, error) {
+		GetCoursesByTeacherT: func(teacherID string) ([]domain.CourseTeacher, error) {
 			assert.Equal(t, testUserID, teacherID)
 			return mockCourses, nil
 		},
@@ -244,8 +245,34 @@ func TestGetCoursesByTeacher_Success(t *testing.T) {
 	if assert.NoError(t, err) {
 		assert.Equal(t, http.StatusOK, rec.Code)
 		expectedJSON := `[
-			{"id":1,"teacher_id":"teacher-789","start_date":"","title":"Advanced Go","description":"","qr_code":"abcd12"},
-			{"id":2,"teacher_id":"teacher-789","start_date":"","title":"Echo Framework","description":"","qr_code":"efgh34"}
+			{
+				"id": 1,
+				"teacher_id": "teacher-789",
+				"title": "Advanced Go",
+				"qr_code": "abcd12",
+				"start_date": "",
+				"description": "",
+				"student_count": 0,
+				"completion_percentage": 0,
+				"video_count": 0,
+				"text_count": 0,
+				"quiz_count": 0,
+				"module_count": 0
+			},
+			{
+				"id": 2,
+				"teacher_id": "teacher-789",
+				"title": "Echo Framework",
+				"qr_code": "efgh34",
+				"start_date": "",
+				"description": "",
+				"student_count": 0,
+				"completion_percentage": 0,
+				"video_count": 0,
+				"text_count": 0,
+				"quiz_count": 0,
+				"module_count": 0
+			}
 		]`
 		assert.JSONEq(t, expectedJSON, rec.Body.String())
 	}
@@ -263,9 +290,9 @@ func TestGetCoursesByTeacher_EmptyList(t *testing.T) {
 	c.Set("user_role", testRole)
 
 	mockRepo := MockCourseRepo{
-		GetCoursesByT: func(teacherID string) ([]domain.CourseDB, error) {
+		GetCoursesByTeacherT: func(teacherID string) ([]domain.CourseTeacher, error) {
 			assert.Equal(t, testUserID, teacherID)
-			return []domain.CourseDB{}, nil
+			return []domain.CourseTeacher{}, nil
 		},
 	}
 

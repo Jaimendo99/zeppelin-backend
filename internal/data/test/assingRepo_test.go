@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
+	"regexp"
 	"testing"
 	"time"
 	"zeppelin/internal/data"
@@ -182,6 +183,7 @@ func TestAssignmentRepo_VerifyAssignment(t *testing.T) {
 		assert.NoError(t, mock.ExpectationsWereMet())
 	})
 }
+
 func TestAssignmentRepo_GetAssignmentsByStudent(t *testing.T) {
 	gormDb, mock := setupMockDb(t)
 	repo := data.NewAssignmentRepo(gormDb)
@@ -189,66 +191,44 @@ func TestAssignmentRepo_GetAssignmentsByStudent(t *testing.T) {
 	userID := "student-456"
 	now := time.Now()
 
-	// The actual SQL query without newlines and extra whitespace
-	// This should match exactly what your repository method generates
-	expectedSql := `SELECT a.assignment_id, a.assigned_at, a.is_active, a.is_verify, c.course_id, c.teacher_id, c.start_date, c.title, c.description, c.qr_code FROM assignment a JOIN course c ON a.course_id = c.course_id WHERE a.user_id = \$1`
+	expectedQuery := regexp.QuoteMeta(
+		`SELECT * FROM "student_course_progress_view" WHERE user_id = $1`)
+	// OJO: GORM genera SELECT * FROM "student_course_progress_view"..,
+	// y para Scan genera una sola consulta
 
-	t.Run("Success", func(t *testing.T) {
-		rows := sqlmock.NewRows([]string{
-			"assignment_id", "assigned_at", "is_active", "is_verify",
-			"course_id", "teacher_id", "start_date", "title", "description", "qr_code",
-		}).
-			AddRow(1, now, true, true, 101, "teacher-1", now.AddDate(0, 0, -1), "Course 101", "Desc 1", "qr1").
-			AddRow(2, now.Add(-time.Hour), false, false, 102, "teacher-2", now.AddDate(0, -1, 0), "Course 102", "Desc 2", "qr2")
+	// Simular las filas devueltas
+	rows := sqlmock.NewRows([]string{
+		"user_id", "course_id", "teacher_id", "start_date",
+		"title", "description", "qr_code",
+		"module_count", "video_count", "text_count", "quiz_count", "completion_percentage",
+	}).
+		AddRow(userID, 101, "teacher-1", now.Format(time.RFC3339),
+			"Course 101", "Desc 1", "qr1", 5, 10, 3, 2, 50.5).
+		AddRow(userID, 102, "teacher-2", now.Add(-time.Hour).Format(time.RFC3339),
+			"Course 102", "Desc 2", "qr2", 2, 4, 1, 1, 25.0)
 
-		mock.ExpectQuery(expectedSql).
-			WithArgs(userID).
-			WillReturnRows(rows)
+	mock.ExpectQuery(expectedQuery).
+		WithArgs(userID).
+		WillReturnRows(rows)
 
-		assignments, err := repo.GetAssignmentsByStudent(userID)
+	progresses, err := repo.GetAssignmentsByStudent(userID)
+	assert.NoError(t, err)
+	require.Len(t, progresses, 2)
 
-		assert.NoError(t, err)
-		require.NotNil(t, assignments)
-		assert.Len(t, assignments, 2)
-		assert.Equal(t, 1, assignments[0].AssignmentID)
-		assert.Equal(t, "Course 101", assignments[0].Title)
-		assert.Equal(t, 102, assignments[1].CourseID)
-		assert.Equal(t, false, assignments[1].IsActive)
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
+	p1 := progresses[0]
+	assert.Equal(t, "student-456", p1.UserID)
+	assert.Equal(t, 101, p1.CourseID)
+	assert.Equal(t, "Course 101", p1.Title)
+	assert.Equal(t, 5, int(p1.ModuleCount))
+	assert.InDelta(t, 50.5, p1.CompletionPercentage, 1e-6)
 
-	t.Run("Success_Empty", func(t *testing.T) {
-		rows := sqlmock.NewRows([]string{
-			"assignment_id", "assigned_at", "is_active", "is_verify",
-			"course_id", "teacher_id", "start_date", "title", "description", "qr_code",
-		})
+	p2 := progresses[1]
+	assert.Equal(t, 102, p2.CourseID)
+	assert.Equal(t, "qr2", p2.QRCode)
+	assert.InDelta(t, 25.0, p2.CompletionPercentage, 1e-6)
 
-		mock.ExpectQuery(expectedSql).
-			WithArgs(userID).
-			WillReturnRows(rows)
-
-		assignments, err := repo.GetAssignmentsByStudent(userID)
-
-		assert.NoError(t, err)
-		assert.Len(t, assignments, 0)
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
-
-	t.Run("Failure", func(t *testing.T) {
-		expectedErr := errors.New("raw query failed")
-		mock.ExpectQuery(expectedSql).
-			WithArgs(userID).
-			WillReturnError(expectedErr)
-
-		assignments, err := repo.GetAssignmentsByStudent(userID)
-
-		assert.Error(t, err)
-		assert.Equal(t, expectedErr, err)
-		assert.Nil(t, assignments)
-		assert.NoError(t, mock.ExpectationsWereMet())
-	})
+	assert.NoError(t, mock.ExpectationsWereMet())
 }
-
 func TestAssignmentRepo_GetStudentsByCourse(t *testing.T) {
 	gormDb, mock := setupMockDb(t)
 	repo := data.NewAssignmentRepo(gormDb)

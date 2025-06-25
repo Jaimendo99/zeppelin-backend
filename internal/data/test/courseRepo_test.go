@@ -71,7 +71,8 @@ func TestCourseRepo_CreateCourse(t *testing.T) {
 func TestCourseRepo_GetCoursesByTeacher(t *testing.T) {
 	teacherID := "teacher123"
 	// Corrected SQL: Removed the ORDER BY clause to match GORM's actual output
-	expectedSql := quoteSql(`SELECT * FROM "course" WHERE teacher_id = $1`)
+	expectedSql := quoteSql(`SELECT * FROM "course_teacher_view" WHERE teacher_id = $1`)
+
 	columns := []string{"course_id", "teacher_id", "start_date", "title", "description", "qr_code"}
 
 	t.Run("Success - Found", func(t *testing.T) {
