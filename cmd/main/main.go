@@ -20,6 +20,8 @@ import (
 	elog "github.com/labstack/gommon/log"
 )
 
+var globalReportCron *ReportCronService
+
 func init() {
 	if err := config.LoadEnv(); err != nil {
 		log.Fatalf("failed to load env: %v", err)
@@ -59,6 +61,21 @@ func init() {
 	}
 
 	_, err = config.InitResend()
+
+	_, err = config.InitResend()
+	if err != nil {
+		log.Fatalf("error inicializando Resend: %v", err)
+	}
+
+	// Inicializar el servicio de reportes
+	reportCron, err := NewReportCronService(config.DB)
+	if err != nil {
+		log.Fatalf("Error inicializando servicio de reportes: %v", err)
+	}
+	reportCron.Start()
+
+	// Guardar referencia global para poder detenerlo
+	globalReportCron = reportCron
 
 }
 
@@ -113,6 +130,11 @@ func main() {
 	if port == "" {
 		port = "3000"
 	}
+	defer func() {
+		if globalReportCron != nil {
+			globalReportCron.Stop()
+		}
+	}()
 	e.Logger.Error(e.Start("0.0.0.0:" + port))
 
 }

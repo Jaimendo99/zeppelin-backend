@@ -76,3 +76,38 @@ func (r *ResendService) SendParentalConsentEmail(toEmail string, token string) e
 
 	return fmt.Errorf("error al enviar correo con Resend: %s", resp.Status)
 }
+
+// Agregar este método a internal/config/init_resend.go
+func (r *ResendService) SendWeeklyReportEmail(toEmail, subject, message string) error {
+	url := "https://api.resend.com/emails"
+
+	body := map[string]interface{}{
+		"from":    "Zeppelin Reports <reports@message.focused.uno>",
+		"to":      []string{toEmail},
+		"subject": subject,
+		"text":    message,
+	}
+
+	jsonData, _ := json.Marshal(body)
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+r.APIKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		return nil
+	}
+
+	return fmt.Errorf("error al enviar reporte semanal: %s", resp.Status)
+}
