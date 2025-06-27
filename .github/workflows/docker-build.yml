@@ -24,7 +24,7 @@ jobs:
           go test -covermode=atomic -coverprofile=coverage.out ./...
 
       - name: Build binary
-        run: CGO_ENABLED=0 go build -o main cmd/main/main.go
+        run: CGO_ENABLED=0 go build -o main cmd/main/*.go
 
       - name: Upload built binary
         uses: actions/upload-artifact@v4.6.0
