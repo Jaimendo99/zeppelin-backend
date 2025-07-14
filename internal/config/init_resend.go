@@ -77,7 +77,6 @@ func (r *ResendService) SendParentalConsentEmail(toEmail string, token string) e
 	return fmt.Errorf("error al enviar correo con Resend: %s", resp.Status)
 }
 
-// Agregar este método a internal/config/init_resend.go
 func (r *ResendService) SendWeeklyReportEmail(toEmail, subject, message string) error {
 	url := "https://api.resend.com/emails"
 

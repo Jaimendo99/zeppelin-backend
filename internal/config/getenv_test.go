@@ -206,3 +206,23 @@ func TestGetClerkConfig_Empty(t *testing.T) {
 	result := config.GetClerkConfig()
 	assert.Equal(t, "", result, "GetClerkConfig should return an empty string if not defined")
 }
+
+func TestGetPort(t *testing.T) {
+	originalPort := os.Getenv("PORT")
+	defer os.Setenv("PORT", originalPort) // Restore it after the test finishes
+
+	expectedPort := "8080"          // Define the value we expect
+	os.Setenv("PORT", expectedPort) // Set the environment variable for this test
+
+	result := config.GetPort() // Call the function under test
+	assert.Equal(t, expectedPort, result, "GetPort should return the set port value")
+}
+
+func TestGetPort_Empty(t *testing.T) {
+	originalPort := os.Getenv("PORT")
+	defer os.Setenv("PORT", originalPort)
+
+	os.Unsetenv("PORT") // Unset the environment variable
+	result := config.GetPort()
+	assert.Equal(t, "", result, "GetPort should return an empty string if PORT is not defined")
+}
